@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="us-ascii"?>
+<application xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" id="my_application">
+  <jobTemplates>
+    <jobTemplate id="my_template">
+      <streamingExecutable>/application/ersasar/run.sh</streamingExecutable>
+    </jobTemplate>
+  </jobTemplates>
+    <workflow id="workflow1">
+    <workflowVersion>1.0</workflowVersion>
+    <node id="sb-10-15-34-25">
+      <job id="my_template"/>
+      <sources>
+        <source refid="file:urls">/application/inputs/inputs.bam</source>
+      </sources>
+    </node>
+  </workflow>
+</application>
+
