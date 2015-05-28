@@ -15,12 +15,95 @@ ERRMISSING=255
 function procCleanup()
 {
     if [ -n "${serverdir}"  ] && [ -d "$serverdir" ]; then
-	ciop-log "ERROR : Signal was trapped . Cleaning up processing directory ${serverdir}"
+	ciop-log "INFO : Cleaning up processing directory ${serverdir}"
 	rm -rf "${serverdir}"
     fi
+    
+}
+
+#trap signals
+function trapFunction()
+{
+    procCleanup
+    ciop-log "ERROR : Signal was trapped"
     exit 
 }
 
+# dem download 
+function demDownload()
+{
+    if [ $# -lt 1 ]; then
+	return ${ERRMISSING}
+    fi
+    
+    #check for required programs 
+    if [ -z "`type -p curl`" ] ; then
+	ciop-log "ERROR : System missing curl utility" return
+	${ERRMISSING} 
+    fi
+	
+    if [ -z "`type -p tiffinfo`" ] ; then
+	ciop-log "ERROR : System missing tiffinfo utility" return
+	${ERRMISSING} 
+    fi
+
+
+    procdir="$1"
+    
+    
+    #grep -h LAT ASC_STACK/SWATH_2_PROCESSING/DAT/GEOSAp' | sed 's@[[:space:]]@@g' |  tr '\n' ' 'sed -n '1p;$p
+    latitudes=(`grep -h LATI ${procdir}/DAT/GEOSAR/*.geosar | cut -b 40-1024 | grep [0-9] | sort -n |  sed -n '1p;$p' | sed 's@[[:space:]]@@g' | tr '\n' ' ' `)
+    longitudes=(`grep -h LONGI ${procdir}/DAT/GEOSAR/*.geosar | cut -b 40-1024 | grep [0-9] | sort -n | sed -n '1p;$p' | sed 's@[[:space:]]@@g' | tr '\n' ' ' `)
+    
+    if [ ${#latitudes[@]} -lt 2 ]; then
+	return ${ERRGENERIC}
+    fi
+    
+    if [ ${#longitudes[@]} -lt 2 ]; then
+	return ${ERRGENERIC}
+    fi
+    
+    url="http://www.altamira-information.com/demdownload?lat="${latitudes[0]}"&lat="${latitudes[1]}"&lon="${longitudes[0]}"&lon="${longitudes[1]}
+    
+    ciop-log "INFO : Downloading DEM from ${url}"
+    
+    demtif=${procdir}/DAT/dem.tif
+    
+    downloadcmd="curl -o \"${demtif}\" \"${url}\" "
+
+    eval "${downloadcmd}" > "${procdir}"/log/demdownload.log 2<&1
+
+    #check downloaded file
+    if [ ! -e "${demtif}" ]; then
+	ciop-log "ERROR : Unable to download DEM data"
+	return ${ERRGENERIC}
+    fi
+    
+    #check it is a tiff
+    tiffinfo "${demtif}" || {
+	ciop-log "ERROR : No DEM data over selected area"
+	return ${ERRGENERIC}
+    }
+    
+    #generate DEM descriptor in diapason format
+    tifdemimport.pl --intif="${demtif}" --outdir="${procdir}/DAT" --exedir="${EXE_DIR}" --datdir="${DAT_DIR}" > "${procdir}/log/deminport.log" 2<&1
+
+export DEM="${procdir}/DAT/dem.dat"
+
+
+if [ ! -e "${DEM}" ]; then
+    ciop-log "ERROR : Failed to convert downloaded DEM data"
+    msg=`cat "${procdir}/log/deminport.log"`
+    ciop-log "INFO : ${msg}"
+    
+    return ${ERRGENERIC}
+fi
+
+ciop-log "INFO : DEM descriptor creation done "
+
+return ${SUCCESS}
+
+}
 
 #setup the Diapason environment
 export LANGUE=en
@@ -65,22 +148,22 @@ if [ -z "$data" ]; then
     break
 fi  
 
-inputlist=(`echo "$data" | sed 's@,@ @g'`)
+inputlist=(`echo "$data" | sed 's@[,;]@ @g'`)
 
 #check the number of records
 ninputs=${#inputlist[@]}
-if [ $ninputs -lt 3 ]; then
-    ciop-log "ERROR : Expected 3 inputs , got ${ninputs}"
+if [ $ninputs -lt 2 ]; then
+    ciop-log "ERROR : Expected 2 inputs , got ${ninputs}"
     exit ${ERRMISSING}
 fi
 
 MASTER=${inputlist[0]}
 SLAVE=${inputlist[1]}
-DEM=${inputlist[2]}
+#DEM=${inputlist[2]}
 
 
-if [ -z "$MASTER" ] || [ -z "${SLAVE}" ] || [ -z "${DEM}" ]; then
-    ciop-log "ERROR : Missing Input file . MASTER->$MASTER , SLAVE->$SLAVE ,DEM->$DEM"
+if [ -z "$MASTER" ] || [ -z "${SLAVE}" ] ; then
+    ciop-log "ERROR : Missing Input file . MASTER->$MASTER , SLAVE->$SLAVE "
     exit ${ERRMISSING}
 fi 
 
@@ -94,7 +177,7 @@ exit ${ERRPERM}
 }
 
 #trap signals
-trap procCleanup SIGHUP SIGINT SIGTERM
+trap trapFunction SIGHUP SIGINT SIGTERM
 
 
 #create directory tree
@@ -112,6 +195,7 @@ localms=`ciop-copy -o "${serverdir}/CD" "${MASTER}" `
 
 [  "$?" == "0"  -a -e "${localms}" ] || {
     ciop-log "ERROR : Failed to download file ${MASTER}"
+    procCleanup
     exit ${ERRSTGIN}
 }
 
@@ -119,6 +203,7 @@ localsl=`ciop-copy -o "${serverdir}/CD" "${SLAVE}" `
 
 [  "$?" == "0"  -a -e "${localsl}" ] || {
     ciop-log "ERROR : Failed to download file ${SLAVE}"
+    procCleanup
     exit ${ERRSTGIN}
 }
 
@@ -135,6 +220,7 @@ if [ -z "${orbitmaster}" ]; then
 	ciop-log "ERROR : Master image extraction failure"
 	msg=`cat "${serverdir}"/log/extract_master.log`
 	ciop-log "ERROR : ${msg}"
+	procCleanup
 	exit ${ERRGENERIC}
 fi
 
@@ -149,6 +235,7 @@ if [ $norbits -lt 2 ]; then
     ciop-log "ERROR : Slave image extraction failure"
     msg=`cat "${serverdir}"/log/extract_slave.log`
     ciop-log "ERROR : ${msg}"
+    procCleanup
     exit ${ERRGENERIC}
 fi
 
@@ -179,8 +266,24 @@ for geosar in `find "${serverdir}"/DAT/GEOSAR/ -iname "*.geosar" -print`; do
 		orbitnum=`grep -ih "ORBIT NUMBER" "${geosar}" | cut -b 40-1024 | sed 's@[[:space:]]@@g'`
 		ciop-log "INFO : Running L0 -> L1 processing for orbit ${orbitnum}"
 		prisme.pl --geosar="$geosar" --mltype=byt --dir="${serverdir}/SLC_CI2" --outdir="${serverdir}/SLC_CI2" --rate --exedir="${EXE_DIR}" > ${serverdir}/log/prisme_${orbitnum}.log 2<&1
+		
+		[ "$?" == "0" ] || {
+		   ciop-log "ERROR : L0 -> L1 processing failed for orbit ${orbitnum}"
+		   msg=`cat ${serverdir}/log/prisme_${orbitnum}.log`
+		   ciop-log "INFO : $msg"
+		   exit ${ERRGENERIC}
+		}
 	fi
+	
+	setlatlongeosar.pl --geosar="$geosar" --exedir="${EXE_DIR}"
 done
+
+
+demDownload "${serverdir}" || {
+    #no DEM data , exit
+    procCleanup
+    exit ${ERRMISSING}
+}
 
 #alt_ambig
 ls "${serverdir}"/ORB/*.orb | alt_ambig.pl --geosar="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --exedir="${EXE_DIR}" -o "${serverdir}/DAT/AMBIG.dat" > "${serverdir}/log/alt_ambig.log" 2<&1
@@ -230,8 +333,7 @@ ciop-publish "${serverdir}"/GEOCODE/*
 ciop-publish "${serverdir}"/log/*
 
 #cleanup our processing directory
-ciop-log "INFO : Cleaning up processing directory ${serverdir}"
-rm -rf "${serverdir}"
+procCleanup
 
 break
 
