@@ -107,10 +107,10 @@ return ${SUCCESS}
 
 #setup the Diapason environment
 export LANGUE=en
-export PERL5LIB=$_CIOP_APPLICATION_PATH/diapason/pldiap/lib
-export PATH=$PATH:$_CIOP_APPLICATION_PATH/diapason/pldiap/bin
-export EXE_DIR=$_CIOP_APPLICATION_PATH/diapason/exe.dir
-export DAT_DIR=$_CIOP_APPLICATION_PATH/diapason/dat.dir
+export PERL5LIB=/opt/diapason/pldiap/lib
+export PATH=$PATH:/opt/diapason/pldiap/bin
+export EXE_DIR=/opt/diapason/exe.dir
+export DAT_DIR=/opt/diapason/dat.dir
 export exedir=${EXE_DIR}
 export datdir=${DAT_DIR}
 
@@ -130,7 +130,7 @@ MLRAN=2
 
 #
 #rootdir=${TMPDIR}
-rootdir=${HOME}
+rootdir=/tmp/
 
 #cleanup old directories
 rm -rf  "${rootdir}"/DIAPASON_* 
@@ -154,6 +154,8 @@ inputlist=(`echo "$data" | sed 's@[,;]@ @g'`)
 ninputs=${#inputlist[@]}
 if [ $ninputs -lt 2 ]; then
     ciop-log "ERROR : Expected 2 inputs , got ${ninputs}"
+    ciop-log "DEBUG : data-> $data "
+    ciop-log "DEBUG : ${inputlist[@]}"
     exit ${ERRMISSING}
 fi
 
@@ -323,14 +325,23 @@ ortho.pl --geosar="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --odir="${serv
 #ortho coh
 ortho.pl --geosar="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --odir="${serverdir}/GEOCODE" --exedir="${EXE_DIR}" --tag="coh_${orbitmaster}_${orbitslave}_ml"  --mlaz="${MLAZ}" --mlran="${MLRAN}" --in="${serverdir}/DIF_INT/coh_${orbitmaster}_${orbitslave}_ml${MLAZ}${MLRAN}.rad"   > "${serverdir}"/log/ortho_ml_coh.log 2<&1
 
+#creating geotiff results
+ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/coh_${orbitmaster}_${orbitslave}_ml_ortho.rad" --demdesc="${DEM}" --outfile="${serverdir}/GEOCODE/coh_${orbitmaster}_${orbitslave}_ml_ortho.tif" >> "${serverdir}"/log/ortho_ml_coh.log 2<&1
+
+ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/pha_${orbitmaster}_${orbitslave}_ortho.rad" --demdesc="${DEM}"  --alpha="${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_ortho.rad" --mask   --outfile="${serverdir}/GEOCODE/pha_${orbitmaster}_${orbitslave}_ortho.tif" --colortbl=BLUE-RED  >> "${serverdir}"/log/ortho.log 2<&1
+
+ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_ortho.rad" --demdesc="${DEM}" --outfile="${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_ortho.tif" >> "${serverdir}"/log/ortho.log 2<&1
+
 
 #publish results
 ciop-log "INFO : Processing Ended. Publishing results"
 #generated ortho files
-ciop-publish "${serverdir}"/GEOCODE/*
+ciop-publish "${serverdir}"/GEOCODE/*.tif
 
 #processing log files
-ciop-publish "${serverdir}"/log/*
+logzip="${serverdir}/TEMP/logs.zip"
+zip "${logzip}" "${serverdir}"/log/*
+ciop-publish "${logzip}"
 
 #cleanup our processing directory
 procCleanup
