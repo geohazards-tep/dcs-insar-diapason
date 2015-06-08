@@ -1,14 +1,16 @@
 <?xml version="1.0" encoding="us-ascii"?>
 <application xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" id="my_application">
   <jobTemplates>
-    <jobTemplate id="ersasar">
+    <jobTemplate id="ersasar" jobType="wps_client">
       <streamingExecutable>/application/ersasar/run.sh</streamingExecutable>
       <defaultJobconf>
+	<property id="ogc.wps.access.point">http://dem.terradue.int:8080/wps/WebProcessingService</property>      
+        <property id="ogc.wps.process.identifier">com.terradue.wps_oozie.process.OozieAbstractAlgorithm</property>
 	<property id="mapred.task.timeout">9900000000</property>
       </defaultJobconf>
     </jobTemplate>
   </jobTemplates>
-    <workflow id="workflow1">
+    <workflow id="workflow1" title="Diapason interferometric processor" abstract="Diapason is an InSAR processing suite developed by the french space agency (CNES)" >
     <workflowVersion>1.0</workflowVersion>
     <node id="sb-10-15-34-25">
       <job id="ersasar"/>
