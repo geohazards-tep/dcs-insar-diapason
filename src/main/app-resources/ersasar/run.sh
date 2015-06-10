@@ -51,7 +51,6 @@ function demDownload()
     procdir="$1"
     
     
-    #grep -h LAT ASC_STACK/SWATH_2_PROCESSING/DAT/GEOSAp' | sed 's@[[:space:]]@@g' |  tr '\n' ' 'sed -n '1p;$p
     latitudes=(`grep -h LATI ${procdir}/DAT/GEOSAR/*.geosar | cut -b 40-1024 | grep [0-9] | sort -n |  sed -n '1p;$p' | sed 's@[[:space:]]@@g' | tr '\n' ' ' `)
     longitudes=(`grep -h LONGI ${procdir}/DAT/GEOSAR/*.geosar | cut -b 40-1024 | grep [0-9] | sort -n | sed -n '1p;$p' | sed 's@[[:space:]]@@g' | tr '\n' ' ' `)
     
@@ -116,21 +115,19 @@ export datdir=${DAT_DIR}
 
 
 #inputs
-#MASTER=/mnt/DATA/DISK/GTEP_TEST/CD/ASA_IM__0CNPDE20040403_215242_000000162025_00373_10948_1023.N1
-#SLAVE=/mnt/DATA/DISK/GTEP_TEST/CD/ASA_IM__0CNPDE20040508_215241_000000162026_00373_11449_0704.N1
-#DEM=/mnt/DATA/DISK/GTEP_TEST/DAT/dem.dat
 
-MASTER="" #/mnt/DATA/DISK/DIAPASON_V4.4_NO_DEM_RELEASE/BAM/9192/ASA_IM__0CNPDE20031203_061256_000000152022_00120_09192_0964.N1
-SLAVE=""  #=/mnt/DATA/DISK/DIAPASON_V4.4_NO_DEM_RELEASE/BAM/10194/ASA_IM__0CNPDE20040211_061253_000000152024_00120_10194_3246.N1
-DEM="" #/mnt/DATA/DISK/GTEP_TEST/DAT/dem_bam_srtm.dat
+MASTER="" 
+SLAVE=""  
+DEM="" 
 
 #PARAMS
 MLAZ=10
 MLRAN=2
 
 #
-#rootdir=${TMPDIR}
-rootdir=/tmp/
+rootdir=${TMPDIR}
+
+
 
 #cleanup old directories
 rm -rf  "${rootdir}"/DIAPASON_* 
@@ -148,7 +145,7 @@ if [ -z "$data" ]; then
     break
 fi  
 
-inputlist=(`echo "$data" | sed 's@[,;]@ @g'`)
+inputlist=(`echo "$data" | sed 's@[,;]@ @g;s@\(:\)\([^/]\)@ \2@g'`)
 
 #check the number of records
 ninputs=${#inputlist[@]}
@@ -178,12 +175,14 @@ ciop-log "ERROR : Cannot create processing directory"
 exit ${ERRPERM}
 }
 
+ciop-log "INFO : processing in directory ${serverdir}"
+
 #trap signals
 trap trapFunction SIGHUP SIGINT SIGTERM
 
 
 #create directory tree
-mkdir -p ${serverdir}/{DAT/GEOSAR,RAW_C5B,SLC_CI2,ORB,TEMP,log,QC,GRID,DIF_INT,CD} || {
+mkdir -p ${serverdir}/{DAT/GEOSAR,RAW_C5B,SLC_CI2,ORB,TEMP,log,QC,GRID,DIF_INT,CD,GEO_CI2} || {
 ciop-log "ERROR : Cannot create processing directory structure"
  exit ${ERRPERM}
 }
@@ -209,7 +208,6 @@ localsl=`ciop-copy -o "${serverdir}/CD" "${SLAVE}" `
     exit ${ERRSTGIN}
 }
 
-#TO-DO handle DEM download and conversion
 
 #extract inputs
 
@@ -247,7 +245,6 @@ ciop-log "INFO : Slave orbit ${orbitslave} extracted"
 
 
 #download precise orbits
-#TO-DO : handle ERS/ASAR , doris/delft
 for geosar in  `find "${serverdir}"/DAT/GEOSAR/ -iname "*.geosar" -print`; do
     sensor=`grep -i "SENSOR NAME" "${geosar}" | cut -b '40-1024' | sed 's@[[:space:]]@@g'`
     orbit=`grep -ih "ORBIT NUMBER" "${geosar}" | cut -b 40-1024 | sed 's@[[:space:]]@@g'`
@@ -308,29 +305,30 @@ coreg.pl --master="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar"  --slave="${se
 
 #ML Interf
 ciop-log "INFO : Running ML  Interferogram Generation"
-interf_sar.pl --master="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --slave="${serverdir}/DAT/GEOSAR/${orbitslave}.geosar" --ci2slave="${serverdir}"/GEO_CI2/geo_"${orbitslave}"_"${orbitmaster}".rad --outdir="${serverdir}/DIF_INT" --exedir="${EXE_DIR}" --mlaz="${MLAZ}" --mlran="${MLRAN}" --amp --coh --nobort --noran --noinc > "${serverdir}/log/interf.log" 2<&1
+interf_sar.pl --master="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --slave="${serverdir}/DAT/GEOSAR/${orbitslave}.geosar" --ci2slave="${serverdir}"/GEO_CI2/geo_"${orbitslave}"_"${orbitmaster}".rad --outdir="${serverdir}/DIF_INT" --exedir="${EXE_DIR}" --mlaz="${MLAZ}" --mlran="${MLRAN}" --amp --coh --nobort --noran --noinc --ortho --psfilt --orthodir="${serverdir}/GEOCODE"   > "${serverdir}/log/interf.log" 2<&1
  
 #11 Interf
 ciop-log "INFO : Running Full resolution Interferogram Generation"
-interf_sar.pl --master="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --slave="${serverdir}/DAT/GEOSAR/${orbitslave}.geosar" --ci2slave="${serverdir}"/GEO_CI2/geo_"${orbitslave}"_"${orbitmaster}".rad --outdir="${serverdir}/DIF_INT" --exedir="${EXE_DIR}" --mlaz=1 --mlran=1 --amp --nocoh --nobort --noran --noinc > "${serverdir}/log/interf.log" 2<&1
+#interf_sar.pl --master="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --slave="${serverdir}/DAT/GEOSAR/${orbitslave}.geosar" --ci2slave="${serverdir}"/GEO_CI2/geo_"${orbitslave}"_"${orbitmaster}".rad --outdir="${serverdir}/DIF_INT" --exedir="${EXE_DIR}" --mlaz=1 --mlran=1 --amp --nocoh --nobort --noran --noinc > "${serverdir}/log/interf.log" 2<&1
  
  
 #ortho
 ciop-log "INFO : Running InSAR results ortho-projection"
-ortho.pl --geosar="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --odir="${serverdir}/GEOCODE" --exedir="${EXE_DIR}" --tag="${orbitmaster}_${orbitslave}" --cplx --amp="${serverdir}/DIF_INT/amp_${orbitmaster}_${orbitslave}_ml11.r4" --pha="${serverdir}/DIF_INT/pha_${orbitmaster}_${orbitslave}_ml11.pha"  > "${serverdir}"/log/ortho.log 2<&1
+#ortho.pl --geosar="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --odir="${serverdir}/GEOCODE" --exedir="${EXE_DIR}" --tag="${orbitmaster}_${orbitslave}" --cplx --amp="${serverdir}/DIF_INT/amp_${orbitmaster}_${orbitslave}_ml11.r4" --pha="${serverdir}/DIF_INT/pha_${orbitmaster}_${orbitslave}_ml11.pha"  > "${serverdir}"/log/ortho.log 2<&1
  
  #ortho ML
-ortho.pl --geosar="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --odir="${serverdir}/GEOCODE" --exedir="${EXE_DIR}" --tag="${orbitmaster}_${orbitslave}_ml"  --mlaz="${MLAZ}" --mlran="${MLRAN}" --cplx --amp="${serverdir}/DIF_INT/amp_${orbitmaster}_${orbitslave}_ml${MLAZ}${MLRAN}.r4" --pha="${serverdir}/DIF_INT/pha_${orbitmaster}_${orbitslave}_ml${MLAZ}${MLRAN}.pha"  > "${serverdir}"/log/ortho_ml.log 2<&1
+#ortho.pl --geosar="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --odir="${serverdir}/GEOCODE" --exedir="${EXE_DIR}" --tag="${orbitmaster}_${orbitslave}_ml"  --mlaz="${MLAZ}" --mlran="${MLRAN}" --cplx --amp="${serverdir}/DIF_INT/amp_${orbitmaster}_${orbitslave}_ml${MLAZ}${MLRAN}.r4" --pha="${serverdir}/DIF_INT/pha_${orbitmaster}_${orbitslave}_ml${MLAZ}${MLRAN}.pha"  > "${serverdir}"/log/ortho_ml.log 2<&1
 
 #ortho coh
-ortho.pl --geosar="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --odir="${serverdir}/GEOCODE" --exedir="${EXE_DIR}" --tag="coh_${orbitmaster}_${orbitslave}_ml"  --mlaz="${MLAZ}" --mlran="${MLRAN}" --in="${serverdir}/DIF_INT/coh_${orbitmaster}_${orbitslave}_ml${MLAZ}${MLRAN}.rad"   > "${serverdir}"/log/ortho_ml_coh.log 2<&1
+#ortho.pl --geosar="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --odir="${serverdir}/GEOCODE" --exedir="${EXE_DIR}" --tag="coh_${orbitmaster}_${orbitslave}_ml"  --mlaz="${MLAZ}" --mlran="${MLRAN}" --in="${serverdir}/DIF_INT/coh_${orbitmaster}_${orbitslave}_ml${MLAZ}${MLRAN}.rad"   > "${serverdir}"/log/ortho_ml_coh.log 2<&1
 
 #creating geotiff results
-ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/coh_${orbitmaster}_${orbitslave}_ml_ortho.rad" --demdesc="${DEM}" --outfile="${serverdir}/GEOCODE/coh_${orbitmaster}_${orbitslave}_ml_ortho.tif" >> "${serverdir}"/log/ortho_ml_coh.log 2<&1
+ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/coh_${orbitmaster}_${orbitslave}_ml${MLAZ}${MLRAN}_ortho.rad" --demdesc="${DEM}" --outfile="${serverdir}/GEOCODE/coh_${orbitmaster}_${orbitslave}_ml_ortho.tif" >> "${serverdir}"/log/ortho_ml_coh.log 2<&1
 
-ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/pha_${orbitmaster}_${orbitslave}_ortho.rad" --demdesc="${DEM}"  --alpha="${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_ortho.rad" --mask   --outfile="${serverdir}/GEOCODE/pha_${orbitmaster}_${orbitslave}_ortho.tif" --colortbl=BLUE-RED  >> "${serverdir}"/log/ortho.log 2<&1
+#ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/pha_${orbitmaster}_${orbitslave}_ortho.rad" --demdesc="${DEM}"  --alpha="${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_ortho.rad" --mask   --outfile="${serverdir}/GEOCODE/pha_${orbitmaster}_${orbitslave}_ortho.tif" --colortbl=BLUE-RED  >> "${serverdir}"/log/ortho.log 2<&1
+ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/psfilt_${orbitmaster}_${orbitslave}_ml${MLAZ}${MLRAN}_ortho.rad" --demdesc="${DEM}"  --alpha="${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_ml${MLAZ}${MLRAN}_ortho.rad" --mask   --outfile="${serverdir}/GEOCODE/pha_${orbitmaster}_${orbitslave}_ortho.tif" --colortbl=BLUE-RED  >> "${serverdir}"/log/ortho.log 2<&1
 
-ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_ortho.rad" --demdesc="${DEM}" --outfile="${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_ortho.tif" >> "${serverdir}"/log/ortho.log 2<&1
+ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_ml${MLAZ}${MLRAN}_ortho.rad" --demdesc="${DEM}" --outfile="${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_ortho.tif" >> "${serverdir}"/log/ortho.log 2<&1
 
 
 #publish results
@@ -340,8 +338,10 @@ ciop-publish "${serverdir}"/GEOCODE/*.tif
 
 #processing log files
 logzip="${serverdir}/TEMP/logs.zip"
-zip "${logzip}" "${serverdir}"/log/*
+cd "${serverdir}"
+zip "${logzip}" log/*
 ciop-publish "${logzip}"
+cd -
 
 #cleanup our processing directory
 procCleanup
