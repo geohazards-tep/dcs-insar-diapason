@@ -1,11 +1,9 @@
 <?xml version="1.0" encoding="us-ascii"?>
 <application xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" id="my_application">
   <jobTemplates>
-    <jobTemplate id="ersasar" jobType="wps_client">
+    <jobTemplate id="ersasar">
       <streamingExecutable>/application/ersasar/run.sh</streamingExecutable>
       <defaultJobconf>
-	<property id="ogc.wps.access.point">http://dem.terradue.int:8080/wps/WebProcessingService</property>      
-        <property id="ogc.wps.process.identifier">com.terradue.wps_oozie.process.OozieAbstractAlgorithm</property>
 	<property id="mapred.task.timeout">9900000000</property>
       </defaultJobconf>
     </jobTemplate>
@@ -15,7 +13,7 @@
     <node id="sb-10-15-34-25">
       <job id="ersasar"/>
       <sources>
-	<source scope="runtime" id="pairs" title="ASAR master/slave pair" abstract="ASAR master;slave pair separated by comma" refid="string:list">file:///home/jduro/TEST_DATA/9192/ASA_IM__0CNPDE20031203_061256_000000152022_00120_09192_0964.N1;file:///home/jduro/TEST_DATA/10194/ASA_IM__0CNPDE20040211_061253_000000152024_00120_10194_3246.N1</source> 
+	<source scope="runtime" id="pairs" title="ASAR master/slave pair" abstract="ASAR master:slave pair separated by comma" refid="string:list">https://eo-virtual-archive4.esa.int/supersites/ER02_SAR_IM__0P_20040603T104855_20040603T104912_IPA_47686_0000.CEOS.tar.gz:https://eo-virtual-archive4.esa.int/supersites/ER02_SAR_IM__0P_20031106T104848_20031106T104905_IPA_44680_0000.CEOS.tar.gz</source> 
       </sources>
     </node>
   </workflow>
