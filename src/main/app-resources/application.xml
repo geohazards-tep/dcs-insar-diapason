@@ -8,12 +8,12 @@
       </defaultJobconf>
     </jobTemplate>
   </jobTemplates>
-    <workflow id="workflow1" title="Diapason interferometric processor" abstract="Diapason is an InSAR processing suite developed by the french space agency (CNES)" >
+    <workflow id="diapason" title="Diapason interferometric processor" abstract="Diapason is an InSAR processing suite developed by the french space agency (CNES)" >
     <workflowVersion>1.0</workflowVersion>
-    <node id="sb-10-15-34-25">
+    <node id="node_diap">
       <job id="ersasar"/>
       <sources>
-	<source scope="runtime" id="pairs" title="ASAR master/slave pair" abstract="ASAR master:slave pair separated by comma" refid="string:list">https://eo-virtual-archive4.esa.int/supersites/ER02_SAR_IM__0P_20040603T104855_20040603T104912_IPA_47686_0000.CEOS.tar.gz:https://eo-virtual-archive4.esa.int/supersites/ER02_SAR_IM__0P_20031106T104848_20031106T104905_IPA_44680_0000.CEOS.tar.gz</source> 
+	<source scope="runtime" id="pairs" title="inSAR master/slave pair" abstract="inSAR (ERS or ASAR) master:slave pair separated by comma" refid="string:list">https://eo-virtual-archive4.esa.int/supersites/ASA_IM__0CNPDE20100215_152550_000001202086_00498_41634_8487.N1:https://eo-virtual-archive4.esa.int/supersites/ASA_IM__0CNPDE20100426_152543_000000302088_00498_42636_0225.N1</source> 
       </sources>
     </node>
   </workflow>
