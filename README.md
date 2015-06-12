@@ -1,7 +1,8 @@
-## Developer Cloud Sandbox for InSAR with the Diapason processor , a proprietary InSAR processing system maintained by Altamira-Information (wwww.altamira-information.com)
+## Developer Cloud Sandbox for InSAR interferogram generation with the Diapason processor 
 
 
 This package contains wrapper scripts for InSAR processing of ERS or Envisat ASAR pairs with the Diapason software.
+Diapason is a proprietary InSAR processing system maintained by Altamira-Information (wwww.altamira-information.com)
 
 ### Getting started
 
