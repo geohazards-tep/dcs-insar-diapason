@@ -8,7 +8,7 @@
       </defaultJobconf>
     </jobTemplate>
   </jobTemplates>
-    <workflow id="diapason" title="Diapason interferometric processor" abstract="Diapason is an InSAR processing suite developed by the french space agency (CNES)" >
+    <workflow id="diapason" title="Diapason interferometric processor" abstract="Interferogram generation with DIAPASON" >
     <workflowVersion>1.0</workflowVersion>
     <node id="node_diap">
       <job id="ersasar"/>
