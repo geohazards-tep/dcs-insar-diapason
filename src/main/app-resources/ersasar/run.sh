@@ -134,9 +134,8 @@ rm -rf  "${rootdir}"/DIAPASON_*
 
 
 # read inputs from stdin
-# the input is  a comma-separated line, first record is master image
+# the input is  a colon-separated line, first record is master image
 #second record is slave image
-#third record is DEM
 while read data
 do
 
