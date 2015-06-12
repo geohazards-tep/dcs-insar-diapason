@@ -50,5 +50,5 @@ ciop-run
 Or it may be submitted with the WPS service available on the Sandbox dashboard , and specifying the inSAR pair to 
 process by setting the master and slave image URL , separated by a colon eg :
 
-https://eo-virtual-archive4.esa.int/supersites/ASA_IM__0CNPAM20090201_092428_000000162076_00079_36205_3967.N1,https://eo-virtual-archive4.esa.int/supersites/ASA_IM__0CNPDE20090412_092426_000000162078_00079_37207_1556.N
+https://eo-virtual-archive4.esa.int/supersites/ASA_IM__0CNPAM20090201_092428_000000162076_00079_36205_3967.N1:https://eo-virtual-archive4.esa.int/supersites/ASA_IM__0CNPDE20090412_092426_000000162078_00079_37207_1556.N
 
