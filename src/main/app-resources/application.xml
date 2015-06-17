@@ -3,6 +3,9 @@
   <jobTemplates>
     <jobTemplate id="ersasar">
       <streamingExecutable>/application/ersasar/run.sh</streamingExecutable>
+      <defaultParameters>
+	<parameter id="slave" title="inSAR slave" abstract="inSAR (ERS or ASAR product) slave"/>
+      </defaultParameters>
       <defaultJobconf>
 	<property id="mapred.task.timeout">9900000000</property>
       </defaultJobconf>
@@ -13,8 +16,12 @@
     <node id="node_diap">
       <job id="ersasar"/>
       <sources>
-	<source scope="runtime" id="pairs" title="inSAR master/slave pair" abstract="inSAR (ERS or ASAR) master:slave pair separated by comma" refid="string:list">https://eo-virtual-archive4.esa.int/supersites/ASA_IM__0CNPDE20100215_152550_000001202086_00498_41634_8487.N1:https://eo-virtual-archive4.esa.int/supersites/ASA_IM__0CNPDE20100426_152543_000000302088_00498_42636_0225.N1</source> 
+	<!--source scope="runtime" id="pairs" title="inSAR master/slave pair" abstract="inSAR (ERS or ASAR) master:slave pair separated by comma" refid="string:list">https://eo-virtual-archive4.esa.int/supersites/ASA_IM__0CNPDE20100215_152550_000001202086_00498_41634_8487.N1:https://eo-virtual-archive4.esa.int/supersites/ASA_IM__0CNPDE20100426_152543_000000302088_00498_42636_0225.N1</source-->
+	<source scope="runtime" id="master" title="inSAR master" abstract="inSAR (ERS or ASAR) master" refid="string:list">https://eo-virtual-archive4.esa.int/supersites/ASA_IM__0CNPDE20100215_152550_000001202086_00498_41634_8487.N1</source>
       </sources>
+      <parameters>
+	<parameter id="slave" scope="runtime">https://eo-virtual-archive4.esa.int/supersites/ASA_IM__0CNPDE20100426_152543_000000302088_00498_42636_0225.N1</parameter>
+      </parameters>
     </node>
   </workflow>
 </application>

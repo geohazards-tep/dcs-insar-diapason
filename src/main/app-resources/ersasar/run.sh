@@ -136,29 +136,20 @@ rm -rf  "${rootdir}"/DIAPASON_*
 # read inputs from stdin
 # the input is  a colon-separated line, first record is master image
 #second record is slave image
-while read data
+while read master
 do
 
 #make sure some data was read
-if [ -z "$data" ]; then
+if [ -z "$master" ]; then
     break
 fi  
 
 inputlist=(`echo "$data" | sed 's@[,;]@ @g;s@\(:\)\([^/]\)@ \2@g'`)
 
-#check the number of records
-ninputs=${#inputlist[@]}
-if [ $ninputs -lt 2 ]; then
-    ciop-log "ERROR : Expected 2 inputs , got ${ninputs}"
-    ciop-log "DEBUG : data-> $data "
-    ciop-log "DEBUG : ${inputlist[@]}"
-    exit ${ERRMISSING}
-fi
-
-MASTER=${inputlist[0]}
-SLAVE=${inputlist[1]}
+MASTER=${master}
+SLAVE=$(ciop-getparam slave)
 #DEM=${inputlist[2]}
-
+ciop-log "DEBUG" "Master $master and Slave $SLAVE"
 
 if [ -z "$MASTER" ] || [ -z "${SLAVE}" ] ; then
     ciop-log "ERROR : Missing Input file . MASTER->$MASTER , SLAVE->$SLAVE "
