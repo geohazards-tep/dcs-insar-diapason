@@ -37,10 +37,12 @@ get_data() {
   local enclosure
   local res
   ciop-log "INFO" "Downloading ${ref}"
-  enclosure="$( opensearch-client  "${ref}" enclosure | tail -1 )"
-  # opensearh client doesn't deal with local paths
+  #enclosure="$( opensearch-client  "${ref}" enclosure | tail -1 )"
+  enclosure="$( opensearch-client  "${ref}" enclosure)"
   res=$?
+  enclosure="$(echo $enclosure | tail -1)"
   [ $res -eq 0 ] && [ -z "${enclosure}" ] && return ${ERR_GETDATA}
+  # opensearh client doesn't deal with local paths
   [ $res -ne 0 ] && enclosure=${ref}
   
   local_file="$( echo ${enclosure} | ciop-copy -f -U -O ${target} - 2> /dev/null )"
