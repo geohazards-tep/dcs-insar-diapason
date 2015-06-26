@@ -29,6 +29,27 @@ function trapFunction()
     exit 
 }
 
+#data download
+get_data() {
+  local ref=$1
+  local target=$2
+  local local_file
+  local enclosure
+  local res
+  ciop-log "INFO" "Downloading ${ref}"
+  enclosure="$( opensearch-client  "${ref}" enclosure | tail -1 )"
+  # opensearh client doesn't deal with local paths
+  res=$?
+  [ $res -eq 0 ] && [ -z "${enclosure}" ] && return ${ERR_GETDATA}
+  [ $res -ne 0 ] && enclosure=${ref}
+  
+  local_file="$( echo ${enclosure} | ciop-copy -f -U -O ${target} - 2> /dev/null )"
+  res=$?
+
+  [ ${res} -ne 0 ] && return ${res}
+  echo ${local_file}
+}
+
 # dem download 
 function demDownload()
 {
@@ -136,29 +157,20 @@ rm -rf  "${rootdir}"/DIAPASON_*
 # read inputs from stdin
 # the input is  a colon-separated line, first record is master image
 #second record is slave image
-while read data
+while read master
 do
 
 #make sure some data was read
-if [ -z "$data" ]; then
+if [ -z "$master" ]; then
     break
 fi  
 
 inputlist=(`echo "$data" | sed 's@[,;]@ @g;s@\(:\)\([^/]\)@ \2@g'`)
 
-#check the number of records
-ninputs=${#inputlist[@]}
-if [ $ninputs -lt 2 ]; then
-    ciop-log "ERROR : Expected 2 inputs , got ${ninputs}"
-    ciop-log "DEBUG : data-> $data "
-    ciop-log "DEBUG : ${inputlist[@]}"
-    exit ${ERRMISSING}
-fi
-
-MASTER=${inputlist[0]}
-SLAVE=${inputlist[1]}
+MASTER=${master}
+SLAVE=$(ciop-getparam slave)
 #DEM=${inputlist[2]}
-
+ciop-log "DEBUG" "Master $master and Slave $SLAVE"
 
 if [ -z "$MASTER" ] || [ -z "${SLAVE}" ] ; then
     ciop-log "ERROR : Missing Input file . MASTER->$MASTER , SLAVE->$SLAVE "
@@ -191,7 +203,8 @@ ciop-log "ERROR : Cannot create processing directory structure"
 #TO-DO check the input file type correctedness
 
 #stage-in the data
-localms=`ciop-copy -o "${serverdir}/CD" "${MASTER}" `
+localms=$( get_data ${MASTER} ${serverdir}/CD )
+#localms=`ciop-copy -o "${serverdir}/CD" "${MASTER}" `
 
 [  "$?" == "0"  -a -e "${localms}" ] || {
     ciop-log "ERROR : Failed to download file ${MASTER}"
@@ -199,7 +212,8 @@ localms=`ciop-copy -o "${serverdir}/CD" "${MASTER}" `
     exit ${ERRSTGIN}
 }
 
-localsl=`ciop-copy -o "${serverdir}/CD" "${SLAVE}" `
+localsl=$( get_data ${SLAVE} ${serverdir}/CD )
+#localsl=`ciop-copy -o "${serverdir}/CD" "${SLAVE}" `
 
 [  "$?" == "0"  -a -e "${localsl}" ] || {
     ciop-log "ERROR : Failed to download file ${SLAVE}"
@@ -263,7 +277,8 @@ for geosar in `find "${serverdir}"/DAT/GEOSAR/ -iname "*.geosar" -print`; do
 	if [ "$status" = "RAW" ];then
 		orbitnum=`grep -ih "ORBIT NUMBER" "${geosar}" | cut -b 40-1024 | sed 's@[[:space:]]@@g'`
 		ciop-log "INFO : Running L0 -> L1 processing for orbit ${orbitnum}"
-		prisme.pl --geosar="$geosar" --mltype=byt --dir="${serverdir}/SLC_CI2" --outdir="${serverdir}/SLC_CI2" --rate --exedir="${EXE_DIR}" > ${serverdir}/log/prisme_${orbitnum}.log 2<&1
+		ciop-log "INFO" "prisme.pl --geosar=$geosar --mltype=byt --dir=${serverdir}/SLC_CI2 --outdir=${serverdir}/SLC_CI2 --rate --exedir=${EXE_DIR} > ${serverdir}/log/prisme_${orbitnum}.log 2<&1"
+		prisme.pl --geosar="$geosar" --mltype=byt --tmpdir="${serverdir}/SLC_CI2" --outdir="${serverdir}/SLC_CI2" --rate --exedir="${EXE_DIR}" > ${serverdir}/log/prisme_${orbitnum}.log 2<&1
 		
 		[ "$?" == "0" ] || {
 		   ciop-log "ERROR : L0 -> L1 processing failed for orbit ${orbitnum}"
@@ -287,6 +302,9 @@ demDownload "${serverdir}" || {
 ls "${serverdir}"/ORB/*.orb | alt_ambig.pl --geosar="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --exedir="${EXE_DIR}" -o "${serverdir}/DAT/AMBIG.dat" > "${serverdir}/log/alt_ambig.log" 2<&1
 
 #create multilook
+
+ciop-log "INFO" "find ${serverdir}/DAT/GEOSAR/ -iname *.geosar -print  | ml_all.pl --type=byt --mlaz=10 --mlran=2 --dir=${serverdir}/SLC_CI2/ > ${serverdir}/log/ml.log 2<&1"
+
 find "${serverdir}/DAT/GEOSAR/" -iname "*.geosar"  -print | ml_all.pl --type=byt --mlaz=10 --mlran=2 --dir="${serverdir}/SLC_CI2/" > "${serverdir}/log/ml.log" 2<&1
 
 #precise sm
@@ -333,13 +351,13 @@ ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_
 #publish results
 ciop-log "INFO : Processing Ended. Publishing results"
 #generated ortho files
-ciop-publish "${serverdir}"/GEOCODE/*.tif
+ciop-publish -m "${serverdir}"/GEOCODE/*.tif
 
 #processing log files
 logzip="${serverdir}/TEMP/logs.zip"
 cd "${serverdir}"
 zip "${logzip}" log/*
-ciop-publish "${logzip}"
+ciop-publish -m "${logzip}"
 cd -
 
 #cleanup our processing directory
