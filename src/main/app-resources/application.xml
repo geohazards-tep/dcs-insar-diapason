@@ -1,6 +1,13 @@
 <?xml version="1.0" encoding="us-ascii"?>
 <application xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" id="my_application">
   <jobTemplates>
+    <jobTemplate id="aux">
+      <streamingExecutable>/application/aux/run.sh</streamingExecutable>
+    <defaultParameters>
+      	<parameter id="aux_catalogue">http://catalogue.terradue.int/catalogue/search</parameter>
+      	<parameter id="slave" title="ASAR Slave product catalogue entry" abstract="Define the Slave ASAR product. The product is passed by references to catalogue entries"/>
+    </defaultParameters>  
+    </jobTemplate>
     <jobTemplate id="ersasar">
       <streamingExecutable>/application/ersasar/run.sh</streamingExecutable>
       <defaultParameters>
@@ -13,15 +20,21 @@
   </jobTemplates>
     <workflow id="diapason" title="Diapason interferometric processor" abstract="Interferogram generation with DIAPASON" >
     <workflowVersion>1.0</workflowVersion>
-    <node id="node_diap">
-      <job id="ersasar"/>
-      <sources>
-	<!--source scope="runtime" id="pairs" title="inSAR master/slave pair" abstract="inSAR (ERS or ASAR) master:slave pair separated by comma" refid="string:list">https://eo-virtual-archive4.esa.int/supersites/ASA_IM__0CNPDE20100215_152550_000001202086_00498_41634_8487.N1:https://eo-virtual-archive4.esa.int/supersites/ASA_IM__0CNPDE20100426_152543_000000302088_00498_42636_0225.N1</source-->
-	<source scope="runtime" id="master" title="inSAR master" abstract="inSAR (ERS or ASAR) master" refid="string:list">https://eo-virtual-archive4.esa.int/supersites/ER02_SAR_IM__0P_20040603T104855_20040603T104912_IPA_47686_0000.CEOS.tar.gz</source>
-      </sources>
-      <parameters>
-	<parameter id="slave" scope="runtime">https://eo-virtual-archive4.esa.int/supersites/ER02_SAR_IM__0P_20031106T104848_20031106T104905_IPA_44680_0000.CEOS.tar.gz</parameter>
-      </parameters>
+	<node id="node_aux">
+	<job id="aux" />
+       	<sources>    
+		<source scope="runtime" id="master" title="inSAR master" abstract="inSAR (ERS or ASAR) master" refid="string:list">https://data.terradue.com/gs/catalogue/tepqw/gtfeature/search?format=json%26uid=ASA_IM__0CNPDE20100215_152550_000001202086_00498_41634_8487.N1</source>
+	</sources>
+	<parameters>
+		<parameter id="slave">https://data.terradue.com/gs/catalogue/tepqw/gtfeature/search?format=json%26uid=ER02_SAR_IM__0P_20040603T104855_20040603T104912_IPA_47686_0000</parameter>
+	</parameters>
+      </node>
+      <node id="node_diap">
+      	<job id="ersasar"/>
+        <sources>
+		<source refid="wf:node">node_aux</source>
+        </sources>
+      <parameters/>
     </node>
   </workflow>
 </application>

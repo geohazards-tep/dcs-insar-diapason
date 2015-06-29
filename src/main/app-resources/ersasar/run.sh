@@ -159,18 +159,27 @@ rm -rf  "${rootdir}"/DIAPASON_*
 # read inputs from stdin
 # the input is  a colon-separated line, first record is master image
 #second record is slave image
-while read master
+while read inputs
 do
 
 #make sure some data was read
-if [ -z "$master" ]; then
+if [ -z "$inputs" ]; then
     break
 fi  
 
-inputlist=(`echo "$data" | sed 's@[,;]@ @g;s@\(:\)\([^/]\)@ \2@g'`)
+ciop-log "DEBUG" "inputs $inputs"
 
-MASTER=${master}
-SLAVE=$(ciop-getparam slave)
+inputarr=($(echo $inputs | tr "@" "\n"))
+ciop-log "DEBUG" "Master ${inputarr[0]}"
+ciop-log "DEBUG" "MasterOrb ${inputarr[1]}"
+ciop-log "DEBUG" "Slave ${inputarr[2]}"
+ciop-log "DEBUG" "SlaveOrd ${inputarr[3]}"
+
+MASTER=${inputarr[0]}
+SLAVE=${inputarr[2]}
+MASTERVORURL=${inputarr[1]}
+SLAVEVORURL=${inputarr[3]}
+
 #DEM=${inputlist[2]}
 ciop-log "DEBUG" "Master $master and Slave $SLAVE"
 
@@ -195,7 +204,7 @@ trap trapFunction SIGHUP SIGINT SIGTERM
 
 
 #create directory tree
-mkdir -p ${serverdir}/{DAT/GEOSAR,RAW_C5B,SLC_CI2,ORB,TEMP,log,QC,GRID,DIF_INT,CD,GEO_CI2} || {
+mkdir -p ${serverdir}/{DAT/GEOSAR,RAW_C5B,SLC_CI2,ORB,TEMP,log,QC,GRID,DIF_INT,CD,GEO_CI2,VOR} || {
 ciop-log "ERROR : Cannot create processing directory structure"
  exit ${ERRPERM}
 }
@@ -217,12 +226,28 @@ localms=$( get_data ${MASTER} ${serverdir}/CD )
 localsl=$( get_data ${SLAVE} ${serverdir}/CD )
 #localsl=`ciop-copy -o "${serverdir}/CD" "${SLAVE}" `
 
+
 [  "$?" == "0"  -a -e "${localsl}" ] || {
     ciop-log "ERROR : Failed to download file ${SLAVE}"
     procCleanup
     exit ${ERRSTGIN}
 }
 
+localmasterVOR=$( get_data ${MASTERVORURL} ${serverdir}/VOR )
+
+[  "$?" == "0"  -a -e "${localmasterVOR}" ] || {
+    ciop-log "ERROR : Failed to download file ${MASTERVORURL}"
+    procCleanup
+    exit ${ERRSTGIN}
+}
+
+localslaveVOR=$( get_data ${SLAVEVORURL} ${serverdir}/VOR )
+
+[  "$?" == "0"  -a -e "${localslaveVOR}" ] || {
+    ciop-log "ERROR : Failed to download file ${SLAVEVORURL}"
+    procCleanup
+    exit ${ERRSTGIN}
+}
 
 #extract inputs
 
