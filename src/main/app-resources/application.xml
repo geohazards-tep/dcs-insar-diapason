@@ -26,7 +26,7 @@
 		<source scope="runtime" id="master" title="inSAR master" abstract="inSAR (ERS or ASAR) master" refid="string:list">https://data.terradue.com/gs/catalogue/tepqw/gtfeature/search?format=json%26uid=ASA_IM__0CNPDE20100215_152550_000001202086_00498_41634_8487.N1</source>
 	</sources>
 	<parameters>
-		<parameter id="slave">https://data.terradue.com/gs/catalogue/tepqw/gtfeature/search?format=json%26uid=ER02_SAR_IM__0P_20040603T104855_20040603T104912_IPA_47686_0000</parameter>
+		<parameter id="slave" scope="runtime">https://data.terradue.com/gs/catalogue/tepqw/gtfeature/search?format=json%26uid=ER02_SAR_IM__0P_20040603T104855_20040603T104912_IPA_47686_0000</parameter>
 	</parameters>
       </node>
       <node id="node_diap">
