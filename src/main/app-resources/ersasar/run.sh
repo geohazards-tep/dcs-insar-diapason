@@ -151,11 +151,6 @@ MLRAN=2
 rootdir=${TMPDIR}
 
 
-
-#cleanup old directories
-rm -rf  "${rootdir}"/DIAPASON_* 
-
-
 # read inputs from stdin
 # the input is  a colon-separated line, first record is master image
 #second record is slave image
@@ -249,6 +244,14 @@ localslaveVOR=$( get_data ${SLAVEVORURL} ${serverdir}/VOR )
     exit ${ERRSTGIN}
 }
 
+#unpack the files in ${serverdir}/VOR if any
+cd "${serverdir}/VOR"
+find . -iname "*.gz"  -exec gunzip '{}' \;
+find . -iname "*.tar" -exec tar -xvf '{}' \;
+cd -
+
+vorcontents=$(ls -l ${serverdir}/VOR)
+ciop-log "INFO : ${vorcontents}"
 #extract inputs
 
 #extract master
@@ -291,11 +294,20 @@ for geosar in  `find "${serverdir}"/DAT/GEOSAR/ -iname "*.geosar" -print`; do
     ciop-log "INFO : Downloading precise orbit data for orbit ${orbit}"
     case "$sensor" in
 	ERS*) diaporb.pl --geosar="${geosar}" --type=delft  --outdir="${serverdir}/ORB" --exedir="${EXE_DIR}" >> "${serverdir}/log/precise_orbits.log" 2<&1 ;;
-	ENVISAT*) diaporb.pl --geosar="${geosar}" --type=doris  --outdir="${serverdir}/ORB" --exedir="${EXE_DIR}" >> "${serverdir}/log/precise_orbits.log" 2<&1 ;;
+	ENVISAT*) 
+	    diaporb.pl --geosar="${geosar}" --type=doris --mode=1 --dir="${serverdir}/VOR" --outdir="${serverdir}/ORB" --exedir="${EXE_DIR}" >> "${serverdir}/log/precise_orbits.log" 2<&1 
+	    storb=$?
+	   
+	    #try with remote orbits if first attempt fails
+	    if [ $storb -ne  0 ]; then
+		msg=`cat "${serverdir}/log/precise_orbits.log"`
+		ciop-log "INFO : ${msg}"
+		diaporb.pl --geosar="${geosar}" --type=doris   --outdir="${serverdir}/ORB" --exedir="${EXE_DIR}" >> "${serverdir}/log/precise_orbits.log" 2<&1
+	    fi
+	    ;;
     esac
-   
+    
 done
-
 
 for geosar in `find "${serverdir}"/DAT/GEOSAR/ -iname "*.geosar" -print`; do
 	status=`grep -ih STATUS "${geosar}" | cut -b 40-1024 | sed 's@[[:space:]]@@g'`
