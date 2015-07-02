@@ -313,6 +313,14 @@ orbitslave=`ls -tra "${serverdir}"/DAT/GEOSAR/*.geosar | tail -1 | xargs grep -i
 
 ciop-log "INFO : Slave orbit ${orbitslave} extracted"
 
+#a few checks
+npass=`grep -ih "SATELLITE PASS" "${serverdir}"/DAT/GEOSAR/*.geosar | cut -b 40-1024 | sort --unique | wc -l`
+
+if [ "$npass" != "1" ]; then
+    ciop-log "ERROR : images are of different satellite pass"
+    procCleanup
+    exit ${ERRGENERIC}
+fi
 
 #download precise orbits
 for geosar in  `find "${serverdir}"/DAT/GEOSAR/ -iname "*.geosar" -print`; do
