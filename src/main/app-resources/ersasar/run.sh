@@ -165,15 +165,37 @@ fi
 ciop-log "DEBUG" "inputs $inputs"
 
 inputarr=($(echo $inputs | tr "@" "\n"))
-ciop-log "DEBUG" "Master ${inputarr[0]}"
-ciop-log "DEBUG" "MasterOrb ${inputarr[1]}"
-ciop-log "DEBUG" "Slave ${inputarr[2]}"
-ciop-log "DEBUG" "SlaveOrd ${inputarr[3]}"
 
-MASTER=${inputarr[0]}
-SLAVE=${inputarr[2]}
-MASTERVORURL=${inputarr[1]}
-SLAVEVORURL=${inputarr[3]}
+
+ninputs=${#inputarr[@]}
+
+#flag telling whether the orbits are inputs to the process
+flag_orbit_in=0
+
+# in ERS case the input list will be :
+# master@slave
+if [ $ninputs -eq 2 ]; then
+    MASTER=${inputarr[0]}
+    SLAVE=${inputarr[1]}
+    ciop-log "DEBUG" "Master ${inputarr[0]}"
+    ciop-log "DEBUG" "Slave ${inputarr[1]}"
+fi 
+
+#in ASAR case the input list will be :
+# master@orbmaster@slave@orbslave
+if [ $ninputs -eq 4  ]; then
+    MASTER=${inputarr[0]}
+    SLAVE=${inputarr[2]}
+    MASTERVORURL=${inputarr[1]}
+    SLAVEVORURL=${inputarr[3]}
+    ciop-log "DEBUG" "Master ${inputarr[0]}"
+    ciop-log "DEBUG" "MasterOrb ${inputarr[1]}"
+    ciop-log "DEBUG" "Slave ${inputarr[2]}"
+    ciop-log "DEBUG" "SlaveOrd ${inputarr[3]}"
+    flag_orbit_in=1
+fi
+
+
 
 #DEM=${inputlist[2]}
 ciop-log "DEBUG" "Master $master and Slave $SLAVE"
@@ -228,21 +250,26 @@ localsl=$( get_data ${SLAVE} ${serverdir}/CD )
     exit ${ERRSTGIN}
 }
 
-localmasterVOR=$( get_data ${MASTERVORURL} ${serverdir}/VOR )
+if [ ${flag_orbit_in} -gt 0 ]; then 
 
-[  "$?" == "0"  -a -e "${localmasterVOR}" ] || {
-    ciop-log "ERROR : Failed to download file ${MASTERVORURL}"
-    procCleanup
-    exit ${ERRSTGIN}
-}
 
-localslaveVOR=$( get_data ${SLAVEVORURL} ${serverdir}/VOR )
-
-[  "$?" == "0"  -a -e "${localslaveVOR}" ] || {
-    ciop-log "ERROR : Failed to download file ${SLAVEVORURL}"
-    procCleanup
-    exit ${ERRSTGIN}
-}
+    localmasterVOR=$( get_data ${MASTERVORURL} ${serverdir}/VOR )
+    
+    [  "$?" == "0"  -a -e "${localmasterVOR}" ] || {
+	ciop-log "ERROR : Failed to download file ${MASTERVORURL}"
+	procCleanup
+	exit ${ERRSTGIN}
+    }
+    
+    localslaveVOR=$( get_data ${SLAVEVORURL} ${serverdir}/VOR )
+    
+    [  "$?" == "0"  -a -e "${localslaveVOR}" ] || {
+	ciop-log "ERROR : Failed to download file ${SLAVEVORURL}"
+	procCleanup
+	exit ${ERRSTGIN}
+    }
+    
+fi
 
 #unpack the files in ${serverdir}/VOR if any
 cd "${serverdir}/VOR"
