@@ -65,8 +65,8 @@ function demDownload()
 	${ERRMISSING} 
     fi
 	
-    if [ -z "`type -p tiffinfo`" ] ; then
-	ciop-log "ERROR : System missing tiffinfo utility" return
+    if [ -z "`type -p gdalinfo`" ] ; then
+	ciop-log "ERROR : System missing gdalinfo utility" return
 	${ERRMISSING} 
     fi
 
@@ -102,7 +102,7 @@ function demDownload()
     fi
     
     #check it is a tiff
-    tiffinfo "${demtif}" || {
+    gdalinfo "${demtif}" || {
 	ciop-log "ERROR : No DEM data over selected area"
 	return ${ERRGENERIC}
     }
@@ -341,18 +341,42 @@ for geosar in  `find "${serverdir}"/DAT/GEOSAR/ -iname "*.geosar" -print`; do
 	    fi
 	    ;;
     esac
+    setlatlongeosar.pl --geosar="${geosar}" --exedir="${EXE_DIR}"
     
 done
 
+
+msroiopt=""
+slroiopt="";
+#get the master & slave  overlapping region 
+msovlp=`sarovlp.pl --geosarm="${serverdir}"/DAT/GEOSAR/${orbitmaster}.geosar --geosars="${serverdir}"/DAT/GEOSAR/${orbitslave}.geosar  --exedir="${EXE_DIR}" --nocols  | grep ^l1`
+
+[ -n "${msovlp}" ] && $msroiopt="--procroi ${msovlp}"
+
+slovlp=`sarovlp.pl --geosars="${serverdir}"/DAT/GEOSAR/${orbitmaster}.geosar --geosarm="${serverdir}"/DAT/GEOSAR/${orbitslave}.geosar  --exedir="${EXE_DIR}" --nocols | grep ^l1`
+
+[ -n "${slovlp}" ] && $slroiopt="--procroi ${slovlp}"
+
+
 for geosar in `find "${serverdir}"/DAT/GEOSAR/ -iname "*.geosar" -print`; do
 	status=`grep -ih STATUS "${geosar}" | cut -b 40-1024 | sed 's@[[:space:]]@@g'`
-	
+	roiopt=""
 	#in case the image is level 0 , produce the slc
 	if [ "$status" = "RAW" ];then
 		orbitnum=`grep -ih "ORBIT NUMBER" "${geosar}" | cut -b 40-1024 | sed 's@[[:space:]]@@g'`
+		if [ "$orbitnum" == "${orbitmaster}" ] && [ -n "${msovlp}" ]; then
+		    roiopt="--procroi ${msovlp}"
+		fi
+
+		if [ "$orbitnum" == "${orbitslave}" ] && [ -n "${slovlp}" ]; then
+		    roiopt="--procroi ${slovlp}"
+		fi
+
+
 		ciop-log "INFO : Running L0 -> L1 processing for orbit ${orbitnum}"
 		ciop-log "INFO" "prisme.pl --geosar=$geosar --mltype=byt --dir=${serverdir}/SLC_CI2 --outdir=${serverdir}/SLC_CI2 --rate --exedir=${EXE_DIR} > ${serverdir}/log/prisme_${orbitnum}.log 2<&1"
-		prisme.pl --geosar="$geosar" --mltype=byt --tmpdir="${serverdir}/SLC_CI2" --outdir="${serverdir}/SLC_CI2" --rate --exedir="${EXE_DIR}" > ${serverdir}/log/prisme_${orbitnum}.log 2<&1
+		ciop-log "INFO" "Area cropping : ${roiopt}"
+		prisme.pl --geosar="$geosar" --mltype=byt --tmpdir="${serverdir}/SLC_CI2" --outdir="${serverdir}/SLC_CI2" --rate --exedir="${EXE_DIR}" ${roiopt}  > ${serverdir}/log/prisme_${orbitnum}.log 2<&1
 		
 		[ "$?" == "0" ] || {
 		   ciop-log "ERROR : L0 -> L1 processing failed for orbit ${orbitnum}"
@@ -361,8 +385,6 @@ for geosar in `find "${serverdir}"/DAT/GEOSAR/ -iname "*.geosar" -print`; do
 		   exit ${ERRGENERIC}
 		}
 	fi
-	
-	setlatlongeosar.pl --geosar="$geosar" --exedir="${EXE_DIR}"
 done
 
 
@@ -389,14 +411,14 @@ precise_sm.pl --sm="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --serverdir="
 
 #coregistration
 ciop-log "INFO : Running Image Coregistration"
-coreg.pl --master="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar"  --slave="${serverdir}/DAT/GEOSAR/${orbitslave}.geosar" --griddir="${serverdir}/GRID" --outdir="${serverdir}/GEO_CI2" --mltype=byt --exedir="${EXE_DIR}" > "${serverdir}"/log/coregistration.log 2<&1
+coreg.pl --master="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar"  --slave="${serverdir}/DAT/GEOSAR/${orbitslave}.geosar" --griddir="${serverdir}/GRID" --outdir="${serverdir}/GEO_CI2" --mltype=byt  --demdesc="${DEM}" --exedir="${EXE_DIR}" > "${serverdir}"/log/coregistration.log 2<&1
 
 
 #interferogram generation
 
 #ML Interf
 ciop-log "INFO : Running ML  Interferogram Generation"
-interf_sar.pl --master="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --slave="${serverdir}/DAT/GEOSAR/${orbitslave}.geosar" --ci2slave="${serverdir}"/GEO_CI2/geo_"${orbitslave}"_"${orbitmaster}".rad --outdir="${serverdir}/DIF_INT" --exedir="${EXE_DIR}" --mlaz="${MLAZ}" --mlran="${MLRAN}" --amp --coh --nobort --noran --noinc --ortho --psfilt --orthodir="${serverdir}/GEOCODE"   > "${serverdir}/log/interf.log" 2<&1
+interf_sar.pl --master="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --slave="${serverdir}/DAT/GEOSAR/${orbitslave}.geosar" --ci2slave="${serverdir}"/GEO_CI2/geo_"${orbitslave}"_"${orbitmaster}".rad  --demdesc="${DEM}" --outdir="${serverdir}/DIF_INT" --exedir="${EXE_DIR}" --mlaz="${MLAZ}" --mlran="${MLRAN}" --amp --coh --nobort --noran --noinc --ortho --psfilt --orthodir="${serverdir}/GEOCODE"   > "${serverdir}/log/interf.log" 2<&1
  
 #11 Interf
 ciop-log "INFO : Running Full resolution Interferogram Generation"
