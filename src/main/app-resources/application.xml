@@ -18,7 +18,7 @@
       </defaultJobconf>
     </jobTemplate>
   </jobTemplates>
-    <workflow id="diapason" title="Diapason interferometric processor" abstract="Interferogram generation with DIAPASON" >
+    <workflow id="diapason" title="Diapason InSAR processor" abstract="Interferogram generation with DIAPASON" >
     <workflowVersion>1.0</workflowVersion>
 	<node id="node_aux">
 	<job id="aux" />
