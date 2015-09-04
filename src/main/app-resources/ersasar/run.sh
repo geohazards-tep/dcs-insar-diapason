@@ -382,6 +382,7 @@ for geosar in  `find "${serverdir}"/DAT/GEOSAR/ -iname "*.geosar" -print`; do
 		diaporb.pl --geosar="${geosar}" --type=doris   --outdir="${serverdir}/ORB" --exedir="${EXE_DIR}" >> "${serverdir}/log/precise_orbits.log" 2<&1
 	    fi
 	    ;;
+	S1*) diaporb.pl --geosar="${geosar}" --type=s1prc  --dir="${serverdir}/TEMP" --mode=1 --outdir="${serverdir}/ORB" --exedir="${EXE_DIR}" >> "${serverdir}/log/precise_orbits.log" 2<&1 ;;
     esac
     setlatlongeosar.pl --geosar="${geosar}" --exedir="${EXE_DIR}"
     
