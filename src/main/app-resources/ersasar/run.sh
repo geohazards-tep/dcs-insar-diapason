@@ -339,6 +339,11 @@ fi
 ciop-log "INFO"  "Master orbit ${orbitmaster} extracted"
 
 #extract slave
+
+#set polarization in case the inputs are Sentinel-1 SM mode
+pol=`grep -ih "POLARIS"  "${serverdir}/DAT/GEOSAR/"*.geosar | cut -b 40-1024 | sed 's@[[:space:]]@@g'`
+export POL="${pol}"
+
 handle_tars.pl --in="${localsl}"  --serverdir="${serverdir}" --exedir="${EXE_DIR}" --tmpdir="${serverdir}/TEMP" > "${serverdir}"/log/extract_slave.log 2<&1
 
 norbits=`ls "${serverdir}"/ORB/*.orb | wc -l`
@@ -497,6 +502,29 @@ ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_
 ciop-log "INFO"  "Processing Ended. Publishing results"
 #generated ortho files
 ciop-publish -m "${serverdir}"/GEOCODE/*.tif
+
+#convert all the tif files to png so that the results can be seen on the GeoBrowser
+
+#first do the coherence and amplitude ,for which 0 is a no-data value
+for tif in `find "${serverdir}/GEOCODE/"*.tif* -print`; do
+    target=${tif%.*}.png
+    gdal_translate -scale -oT Byte -of PNG -co worldfile=yes -a_nodata 0 "${tif}" "${target}" >> "${serverdir}"/log/ortho.log 2<&1
+    #convert the world file to pngw extension
+    wld=${target%.*}.wld
+    pngw=${target%.*}.pngw
+    [ -e "${wld}" ] && mv "${wld}"  "${pngw}"
+done
+
+#convert the phase with imageMagick , which can deal with the alpha channel
+if [ -n "`type -p convert`" ]; then
+    phase=`ls ${serverdir}/GEOCODE/*pha*.tif* | head -1`
+    [ -n "$phase" ] && convert -alpha activate "${phase}" "${phase%.*}.png"
+fi
+
+#publish png and their pngw files
+ciop-publish -m "${serverdir}"/GEOCODE/*.png
+ciop-publish -m "${serverdir}"/GEOCODE/*.pngw
+
 
 #processing log files
 logzip="${serverdir}/TEMP/logs.zip"
