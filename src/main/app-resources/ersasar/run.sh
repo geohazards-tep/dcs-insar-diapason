@@ -459,7 +459,7 @@ ls "${serverdir}"/ORB/*.orb | alt_ambig.pl --geosar="${serverdir}/DAT/GEOSAR/${o
 #create multilook
 
 
-find "${serverdir}/DAT/GEOSAR/" -iname "*.geosar"  -print | ml_all.pl --type=byt --mlaz=10 --mlran=2 --dir="${serverdir}/SLC_CI2/" > "${serverdir}/log/ml.log" 2<&1
+find "${serverdir}/DAT/GEOSAR/" -iname "*.geosar"  -print | ml_all.pl --type=byt --mlaz=${MLAZ} --mlran=${MLRAN} --dir="${serverdir}/SLC_CI2/" > "${serverdir}/log/ml.log" 2<&1
 
 #precise sm
 precise_sm.pl --sm="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --serverdir="${serverdir}" --rlcheck --recor --demdesc="${DEM}" --exedir="${EXE_DIR}" > "${serverdir}/log/precise_${orbitmaster}.log" 2<&1
