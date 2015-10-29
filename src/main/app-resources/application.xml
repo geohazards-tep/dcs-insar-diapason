@@ -12,13 +12,15 @@
       <streamingExecutable>/application/ersasar/run.sh</streamingExecutable>
       <defaultParameters>
 	<parameter id="slave" title="inSAR slave" abstract="inSAR  slave"/>
+	<parameter id="polarization" scope="compilation"></parameter>
+	<parameter id="aoi" title="Area Of Interest" abstract="Restrict processing to selected area"  scope="runtime"  target="geo:box" type="BoundingBoxData"></parameter>
       </defaultParameters>
       <defaultJobconf>
 	<property id="mapred.task.timeout">9900000000</property>
       </defaultJobconf>
     </jobTemplate>
   </jobTemplates>
-    <workflow id="diapason" title="Diapason InSAR - StripMap(SM)" abstract="Master and Slave images of a same mission (ENVISAT,ERS,Sentinel-1 SLC)" >
+    <workflow id="diapason" title="Diapason InSAR - StripMap(SM)" abstract="DIAPASON is an InSAR tool suite developed by the French Space Agency (CNES) and maintained by ALTAMIRA INFORMATION.This service performs an InSAR workflow on ENVISAT,ERS(RAW and SLC) or Sentinel-1 (SLC) stripmap data, producing interferograms, amplitude and coherence maps. To run this service , specify a master and a slave image of the same mission." >
     <workflowVersion>1.0</workflowVersion>
 	<node id="node_aux">
 	<job id="aux" />
@@ -34,7 +36,9 @@
         <sources>
 		<source refid="wf:node">node_aux</source>
         </sources>
-      <parameters/>
+      <parameters> 
+	<parameter id="aoi"/>
+      </parameters>
     </node>
   </workflow>
 </application>
