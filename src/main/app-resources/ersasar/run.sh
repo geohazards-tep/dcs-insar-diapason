@@ -157,6 +157,81 @@ function check_local_sar_file
     return ${ERRGENERIC}
 }
 
+#function computing the area of slc scene within aoi
+#aoi specified as minlon,minlat,maxlon,maxlat
+function geosar_get_aoi_coords()
+{
+    if [ $# -lt 2 ]; then
+	return 1
+    fi
+
+
+    local geosar="$1"
+    local aoi="$2"
+
+    local tmpdir_="/tmp"
+    
+    if [ $# -ge 3 ]; then
+	tmpdir_=$3
+    fi
+
+    
+    #aoi is of the form
+    #minlon,minlat,maxlon,maxlat
+    aoi=(`echo "$aoi" | sed 's@,@ @g'`)
+    
+    if [ ${#aoi[@]} -lt 4 ]; then
+	return 1
+    fi
+
+    tmpgeosar=${tmpdir_}/tmp.geosar
+    
+    cp "${geosar}" "${tmpgeosar}" || {
+return 1
+    }
+    
+    sed -i -e 's@\(CENTER LATITUDE\)\([[:space:]]*\)\(.*\)@\1\2---@g;s@\(CENTER LONGITUDE\)\([[:space:]]*\)\(.*\)@\1\2---@g;s@\(LL LATITUDE\)\([[:space:]]*\)\(.*\)@\1\2---@g' "${tmpgeosar}"
+    sed -i -e 's@\(LR LATITUDE\)\([[:space:]]*\)\(.*\)@\1\2---@g;s@\(UL LATITUDE\)\([[:space:]]*\)\(.*\)@\1\2---@g;s@\(UR LATITUDE\)\([[:space:]]*\)\(.*\)@\1\2---@g' "${tmpgeosar}"
+    sed -i -e 's@\(LR LONGITUDE\)\([[:space:]]*\)\(.*\)@\1\2---@g;s@\(UL LONGITUDE\)\([[:space:]]*\)\(.*\)@\1\2---@g;s@\(UR LONGITUDE\)\([[:space:]]*\)\(.*\)@\1\2---@g' "${tmpgeosar}"
+    sed -i -e 's@\(LL LONGITUDE\)\([[:space:]]*\)\(.*\)@\1\2---@g' "${tmpgeosar}"
+
+    #set the lat/long from the aoi
+    local cmdll="sed -i -e 's@\(LL LATITUDE\)\([[:space:]]*\)\([^\n]*\)@\1\2"${aoi[1]}"@g' \"${tmpgeosar}\""
+    local cmdul="sed -i -e 's@\(UL LATITUDE\)\([[:space:]]*\)\([^\n]*\)@\1\2"${aoi[3]}"@g' \"${tmpgeosar}\""
+    
+    local cmdlll="sed -i -e 's@\(LL LONGITUDE\)\([[:space:]]*\)\([^\n]*\)@\1\2"${aoi[0]}"@g' \"${tmpgeosar}\""
+    local cmdull="sed -i -e 's@\(UL LONGITUDE\)\([[:space:]]*\)\([^\n]*\)@\1\2"${aoi[2]}"@g' \"${tmpgeosar}\""
+    
+    
+    
+    eval "${cmdll}"
+    eval "${cmdul}"
+    eval "${cmdull}"
+    eval "${cmdlll}"
+    
+    if [ -z "${EXE_DIR}" ]; then
+	EXE_DIR=/mnt/DATA/DISK/TEMP/DIAP_TEMP/install/exe.dir/
+    fi
+    
+    roi=$(sarovlp.pl --geosarm="$geosar" --geosars="${tmpgeosar}" --exedir="${EXE_DIR}")
+    
+    status=$?
+
+    #no overlapping between image and aoi
+    if [ $status -eq 255 ]; then
+	return 255
+    fi
+    
+    if [ -z "$roi" ]; then
+	return 1
+    fi
+
+    echo $roi
+
+    return 0
+    
+}
+
 
 #setup the Diapason environment
 export LANGUE=en
@@ -178,8 +253,14 @@ DEM=""
 MLAZ=10
 MLRAN=2
 
+#S1 SM flag
+S1FLAG=""
+
 #
 rootdir=${TMPDIR}
+
+# get the catalogue access point
+inputaoi=(`ciop-getparam aoi`)
 
 
 # read inputs from stdin
@@ -252,7 +333,7 @@ trap trapFunction SIGHUP SIGINT SIGTERM
 
 
 #create directory tree
-mkdir -p ${serverdir}/{DAT/GEOSAR,RAW_C5B,SLC_CI2,ORB,TEMP,log,QC,GRID,DIF_INT,CD,GEO_CI2,VOR} || {
+mkdir -p ${serverdir}/{DAT/GEOSAR,RAW_C5B,SLC_CI2,ORB,TEMP,log,QC,GRID,DIF_INT,CD,GEO_CI2,VOR,GEO_CI2_EXT_LIN,GRID_LIN} || {
 ciop-log "ERROR"  "Cannot create processing directory structure"
  exit ${ERRPERM}
 }
@@ -391,6 +472,7 @@ for geosar in  `find "${serverdir}"/DAT/GEOSAR/ -iname "*.geosar" -print`; do
 	    #adjust the multilook parameters for S1 SM data
 	    MLAZ=8
 	    MLRAN=4
+	    S1FLAG="YES"
 	    ;;
     esac
     setlatlongeosar.pl --geosar="${geosar}" --exedir="${EXE_DIR}"
@@ -400,29 +482,60 @@ done
 
 msroiopt=""
 slroiopt="";
-#get the master & slave  overlapping region 
-msovlp=`sarovlp.pl --geosarm="${serverdir}"/DAT/GEOSAR/${orbitmaster}.geosar --geosars="${serverdir}"/DAT/GEOSAR/${orbitslave}.geosar  --exedir="${EXE_DIR}" --nocols  | grep ^l1`
-ovlpstatus=$?
 
-if [ $ovlpstatus -eq 255 ]; then
-    ciop-log "ERROR " "Master and Slave image don't overlap "
-    procCleanup
-    exit ${ERRGENERIC}
+if [ -z "$inputaoi" ]; then
+
+    #get the master & slave  overlapping region 
+    msovlp=`sarovlp.pl --geosarm="${serverdir}"/DAT/GEOSAR/${orbitmaster}.geosar --geosars="${serverdir}"/DAT/GEOSAR/${orbitslave}.geosar  --exedir="${EXE_DIR}" --nocols  | grep ^l1`
+    ovlpstatus=$?
+
+    if [ $ovlpstatus -eq 255 ]; then
+	ciop-log "ERROR " "Master and Slave image don't overlap "
+	procCleanup
+	exit ${ERRGENERIC}
+    fi
+    
+    
+    slovlp=`sarovlp.pl --geosars="${serverdir}"/DAT/GEOSAR/${orbitmaster}.geosar --geosarm="${serverdir}"/DAT/GEOSAR/${orbitslave}.geosar  --exedir="${EXE_DIR}" --nocols | grep ^l1`
+    
+    
+else
+    
+    #user set an aoi
+    msovlp=$(geosar_get_aoi_coords  "${serverdir}"/DAT/GEOSAR/${orbitmaster}.geosar "${inputaoi}"   "${serverdir}/TEMP")
+    ovlpstatus=$?
+    if [ $ovlpstatus -eq 255 ]; then
+	ciop-log "ERROR " "Master image and input AOI  don't overlap "
+	procCleanup
+	exit ${ERRGENERIC}
+    fi
+
+    slovlp=$(geosar_get_aoi_coords  "${serverdir}"/DAT/GEOSAR/${orbitslave}.geosar "${inputaoi}"   "${serverdir}/TEMP")
+    
+    ovlpstatus=$?
+    if [ $ovlpstatus -eq 255 ]; then
+	ciop-log "ERROR " "Slave image and input AOI  don't overlap "
+	procCleanup
+	exit ${ERRGENERIC}
+    fi
+    
+    echo "slave image aoi overlap : ${slovlp}" >> "${serverdir}/log/"/extract_slave.log 2<&1
+    echo "master image aoi overlap : ${msovlp}" >> "${serverdir}/log/"/extract_master.log 2<&1
+    
 fi
 
 [ -n "${msovlp}" ] && msroiopt="--procroi ${msovlp}"
-
-slovlp=`sarovlp.pl --geosars="${serverdir}"/DAT/GEOSAR/${orbitmaster}.geosar --geosarm="${serverdir}"/DAT/GEOSAR/${orbitslave}.geosar  --exedir="${EXE_DIR}" --nocols | grep ^l1`
-
+    
 [ -n "${slovlp}" ] && slroiopt="--procroi ${slovlp}"
 
 
 for geosar in `find "${serverdir}"/DAT/GEOSAR/ -iname "*.geosar" -print`; do
 	status=`grep -ih STATUS "${geosar}" | cut -b 40-1024 | sed 's@[[:space:]]@@g'`
 	roiopt=""
+	orbitnum=`grep -ih "ORBIT NUMBER" "${geosar}" | cut -b 40-1024 | sed 's@[[:space:]]@@g'`
+		
 	#in case the image is level 0 , produce the slc
 	if [ "$status" = "RAW" ];then
-		orbitnum=`grep -ih "ORBIT NUMBER" "${geosar}" | cut -b 40-1024 | sed 's@[[:space:]]@@g'`
 		if [ "$orbitnum" == "${orbitmaster}" ] && [ -n "${msovlp}" ]; then
 		    roiopt="--procroi ${msovlp}"
 		fi
@@ -443,6 +556,20 @@ for geosar in `find "${serverdir}"/DAT/GEOSAR/ -iname "*.geosar" -print`; do
 		   ciop-log "INFO"  "$msg"
 		   exit ${ERRGENERIC}
 		}
+	else
+	    #cut slc 
+	    if [ "$orbitnum" == "${orbitmaster}" ] && [ -n "${msovlp}" ]; then
+		roiopt="--roi=${msovlp}"
+	    fi
+	    
+	    if [ "$orbitnum" == "${orbitslave}" ] && [ -n "${slovlp}" ]; then
+		roiopt="--roi=${slovlp}"
+	    fi
+	    
+	    [ -n "${roiopt}" ] && { 
+		slcroi.pl --geosar="${geosar}" "${roiopt}" --exedir="${EXE_DIR}" >> ${serverdir}/log/slcroi.log 2<&1
+		setlatlongeosar.pl --geosar="${geosar}" --exedir="${EXE_DIR}" >> ${serverdir}/log/slcroi.log 2<&1
+	    }
 	fi
 done
 
@@ -462,7 +589,16 @@ ls "${serverdir}"/ORB/*.orb | alt_ambig.pl --geosar="${serverdir}/DAT/GEOSAR/${o
 find "${serverdir}/DAT/GEOSAR/" -iname "*.geosar"  -print | ml_all.pl --type=byt --mlaz=${MLAZ} --mlran=${MLRAN} --dir="${serverdir}/SLC_CI2/" > "${serverdir}/log/ml.log" 2<&1
 
 #precise sm
-precise_sm.pl --sm="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --serverdir="${serverdir}" --rlcheck --recor --demdesc="${DEM}" --exedir="${EXE_DIR}" > "${serverdir}/log/precise_${orbitmaster}.log" 2<&1
+[ "$S1FLAG" != "YES" ] && precise_sm.pl --sm="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --serverdir="${serverdir}" --rlcheck --recor --demdesc="${DEM}" --exedir="${EXE_DIR}" > "${serverdir}/log/precise_${orbitmaster}.log" 2<&1
+
+[ "$S1FLAG" == "YES" ] && precise_sm.pl --sm="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --serverdir="${serverdir}" --recor --demdesc="${DEM}" --exedir="${EXE_DIR}" --noroughlock --shiftaz=0 --shiftran=0 > "${serverdir}/log/precise_${orbitmaster}.log" 2<&1
+
+
+#precstatus=$?
+
+#if [ ${precstatus} -ne 0  ]; then
+#precise_sm.pl --sm="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --serverdir="${serverdir}" --recor --demdesc="${DEM}" --exedir="${EXE_DIR}" --noroughlock --shiftaz=0 --shiftran=0   >> "${serverdir}/log/precise_${orbitmaster}.log" 2<&1
+#fi
 
 #precise sm
 #precise_sm.pl --sm="${serverdir}/DAT/GEOSAR/${orbitslave}.geosar" --serverdir="${serverdir}" --recor --demdesc="${DEM}" --exedir="${EXE_DIR}" > "${serverdir}/log/precise_${orbitslave}.log" 2<&1
