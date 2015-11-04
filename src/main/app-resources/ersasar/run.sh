@@ -190,17 +190,26 @@ function geosar_get_aoi_coords()
 return 1
     }
     
+    #increase the aoi extent
+    local extentfactor=0.2
+    local diffx=`echo "(${aoi[2]} - ${aoi[0]})*${extentfactor}" | bc -l`
+    local minlon=`echo "${aoi[0]} - ${diffx}" | bc -l`
+    local maxlon=`echo "${aoi[2]} + ${diffx}" | bc -l`
+    local diffy=`echo "(${aoi[3]} - ${aoi[1]})*${extentfactor}" | bc -l`
+    local minlat=`echo "${aoi[1]} - ${diffy}" | bc -l`
+    local maxlat=`echo "${aoi[3]} + ${diffy}" | bc -l`
+
     sed -i -e 's@\(CENTER LATITUDE\)\([[:space:]]*\)\(.*\)@\1\2---@g;s@\(CENTER LONGITUDE\)\([[:space:]]*\)\(.*\)@\1\2---@g;s@\(LL LATITUDE\)\([[:space:]]*\)\(.*\)@\1\2---@g' "${tmpgeosar}"
     sed -i -e 's@\(LR LATITUDE\)\([[:space:]]*\)\(.*\)@\1\2---@g;s@\(UL LATITUDE\)\([[:space:]]*\)\(.*\)@\1\2---@g;s@\(UR LATITUDE\)\([[:space:]]*\)\(.*\)@\1\2---@g' "${tmpgeosar}"
     sed -i -e 's@\(LR LONGITUDE\)\([[:space:]]*\)\(.*\)@\1\2---@g;s@\(UL LONGITUDE\)\([[:space:]]*\)\(.*\)@\1\2---@g;s@\(UR LONGITUDE\)\([[:space:]]*\)\(.*\)@\1\2---@g' "${tmpgeosar}"
     sed -i -e 's@\(LL LONGITUDE\)\([[:space:]]*\)\(.*\)@\1\2---@g' "${tmpgeosar}"
 
     #set the lat/long from the aoi
-    local cmdll="sed -i -e 's@\(LL LATITUDE\)\([[:space:]]*\)\([^\n]*\)@\1\2"${aoi[1]}"@g' \"${tmpgeosar}\""
-    local cmdul="sed -i -e 's@\(UL LATITUDE\)\([[:space:]]*\)\([^\n]*\)@\1\2"${aoi[3]}"@g' \"${tmpgeosar}\""
+    local cmdll="sed -i -e 's@\(LL LATITUDE\)\([[:space:]]*\)\([^\n]*\)@\1\2"${minlat}"@g' \"${tmpgeosar}\""
+    local cmdul="sed -i -e 's@\(UL LATITUDE\)\([[:space:]]*\)\([^\n]*\)@\1\2"${maxlat}"@g' \"${tmpgeosar}\""
     
-    local cmdlll="sed -i -e 's@\(LL LONGITUDE\)\([[:space:]]*\)\([^\n]*\)@\1\2"${aoi[0]}"@g' \"${tmpgeosar}\""
-    local cmdull="sed -i -e 's@\(UL LONGITUDE\)\([[:space:]]*\)\([^\n]*\)@\1\2"${aoi[2]}"@g' \"${tmpgeosar}\""
+    local cmdlll="sed -i -e 's@\(LL LONGITUDE\)\([[:space:]]*\)\([^\n]*\)@\1\2"${minlon}"@g' \"${tmpgeosar}\""
+    local cmdull="sed -i -e 's@\(UL LONGITUDE\)\([[:space:]]*\)\([^\n]*\)@\1\2"${maxlon}"@g' \"${tmpgeosar}\""
     
     
     
@@ -232,6 +241,33 @@ return 1
     
 }
 
+#inputs : aoi_string and processing root dir
+function crop_geotiff2_to_aoi()
+{
+    if [ $# -lt 2 ]; then
+	return 1
+    fi
+
+    local rootdir="`readlink -f $1`"
+    local aoistr="$2"
+    local aoi=(`echo "$aoistr" | sed 's@,@ @g'`)
+    
+    if [ ${#aoi[@]} -lt 4 ]; then
+	return 1
+    fi
+
+    local tempo=${rootdir}/TEMP
+    
+    local geotiff=""
+    
+    for geotiff in `find "${rootdir}/GEOCODE"  -iname "*.tiff" -print -o -iname "*.tif" -print`; do
+	target=${tempo}/`basename $geotiff`
+	gdalwarp -te ${aoi[0]} ${aoi[1]} ${aoi[2]} ${aoi[3]} -r bilinear "${geotiff}" "${target}" >> ${rootdir}/log/tiffcrop.log 2<&1
+	mv "${target}" "${geotiff}"
+     done
+    
+    return 0
+}
 
 #setup the Diapason environment
 export LANGUE=en
@@ -640,6 +676,9 @@ ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_
 
 #publish results
 ciop-log "INFO"  "Processing Ended. Publishing results"
+
+#restrict the output extent so that it matches the aoi
+[ -n "${inputaoi}" ] &&  crop_geotiff2_to_aoi "${serverdir}" "${inputaoi}"
 #generated ortho files
 ciop-publish -m "${serverdir}"/GEOCODE/*.tif
 
