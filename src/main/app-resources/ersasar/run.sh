@@ -295,9 +295,21 @@ S1FLAG=""
 #
 rootdir=${TMPDIR}
 
-# get the catalogue access point
+# get the service parameters
 inputaoi=(`ciop-getparam aoi`)
-
+naoival=`echo "${inputaoi}" | sed 's@[^0-9\.\-\,]@@g;s@,@ @g'  | wc -w`
+[ ${naoival}  -lt 4 ] && inputaoi="" 
+#polarization
+inputpol=(`ciop-getparam polarization`)
+export POL=${inputpol}
+#correlation parameters
+winazi=(`ciop-getparam winazi`)
+winran=(`ciop-getparam winran`)
+expwinazi=(`ciop-getparam expwinazi`)
+expwinran=(`ciop-getparam expwinran`)
+corrthr=(`ciop-getparam corrthr`)
+#psfilt option
+psfiltx=(`ciop-getparam psfiltx`)
 
 # read inputs from stdin
 # the input is  a colon-separated line, first record is master image
@@ -641,14 +653,17 @@ find "${serverdir}/DAT/GEOSAR/" -iname "*.geosar"  -print | ml_all.pl --type=byt
 
 #coregistration
 ciop-log "INFO"  "Running Image Coregistration"
-coreg.pl --master="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar"  --slave="${serverdir}/DAT/GEOSAR/${orbitslave}.geosar" --griddir="${serverdir}/GRID" --outdir="${serverdir}/GEO_CI2" --mltype=byt  --demdesc="${DEM}" --exedir="${EXE_DIR}" > "${serverdir}"/log/coregistration.log 2<&1
+coreg.pl --master="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --prog=correl_window --expwinazi="${expwinazi}" --expwinran="${expwinran}" --winazi="${winazi}" --winran="${winran}" --thr="${corrthr}" --slave="${serverdir}/DAT/GEOSAR/${orbitslave}.geosar" --griddir="${serverdir}/GRID" --outdir="${serverdir}/GEO_CI2" --mltype=byt  --demdesc="${DEM}" --exedir="${EXE_DIR}" > "${serverdir}"/log/coregistration.log 2<&1
+
+#fine coregistration
+#lincor.pl --geosardir="${serverdir}/DAT/GEOSAR" --exedir="${EXE_DIR}" --smresamp="${serverdir}/SLC_CI2/${orbitmaster}_SLC.ci2" --ci2slave="${serverdir}/GEO_CI2/geo_${orbitslave}_${orbitmaster}.ci2" --outdir="${serverdir}/GEO_CI2_EXT_LIN" --griddir="${serverdir}/GRID_LIN" --interpx=1 --mlaz="${MLAZ}" --mlran="${MLRAN}" --gsm="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --gsl="${serverdir}/DAT/GEOSAR/${orbitslave}.geosar" --azinterval=20 --rainterval=20 --expwinazi=5 --expwinran=5 --demdesc="${DEM}" >> "${serverdir}"/log/lincor.log 2<&1
 
 
 #interferogram generation
 
 #ML Interf
 ciop-log "INFO"  "Running ML  Interferogram Generation"
-interf_sar.pl --master="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --slave="${serverdir}/DAT/GEOSAR/${orbitslave}.geosar" --ci2slave="${serverdir}"/GEO_CI2/geo_"${orbitslave}"_"${orbitmaster}".rad  --demdesc="${DEM}" --outdir="${serverdir}/DIF_INT" --exedir="${EXE_DIR}" --mlaz="${MLAZ}" --mlran="${MLRAN}" --amp --coh --nobort --noran --noinc --ortho --psfilt --orthodir="${serverdir}/GEOCODE"   > "${serverdir}/log/interf.log" 2<&1
+interf_sar.pl --master="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --slave="${serverdir}/DAT/GEOSAR/${orbitslave}.geosar" --ci2slave="${serverdir}"/GEO_CI2/geo_"${orbitslave}"_"${orbitmaster}".rad  --demdesc="${DEM}" --outdir="${serverdir}/DIF_INT" --exedir="${EXE_DIR}" --mlaz="${MLAZ}" --mlran="${MLRAN}" --amp --coh --nobort --noran --noinc --ortho --psfilt --orthodir="${serverdir}/GEOCODE" --psfiltx="${psfiltx}"  > "${serverdir}/log/interf.log" 2<&1
  
 #11 Interf
 ciop-log "INFO"  "Running Full resolution Interferogram Generation"
