@@ -269,6 +269,40 @@ function crop_geotiff2_to_aoi()
     return 0
 }
 
+
+function check_resampling()
+{
+    if [ $# -lt 5 ]; then
+	return 1
+    fi
+
+    local srvdir="$1"
+    local ms=$2
+    local sl=$3
+    local mlaz=$4
+    local mlran=$5
+    
+    #check if prf and sampling frequency are the same for master and slave
+    nprf=`grep -ih "PRF" ${srvdir}/DAT/GEOSAR/*.geosar | cut -b 40-1024 | awk '{printf("%.5f\n",$1)}' | sort -n --unique | wc -l`
+    nfreq=`grep -ih "SAMPLING FREQUENCY" ${srvdir}/DAT/GEOSAR/*.geosar | cut -b 40-1024 | awk '{printf("%.8f\n",$1)}' | sort -n --unique | wc -l`
+    
+   
+    #run resampling if required
+    if [ $nprf -ne 1 ] || [  $nfreq -ne 1 ]; then
+
+	ciop-log "INFO" "Resampling slave image"
+    
+	resamp.pl --gi="${srvdir}/DAT/GEOSAR/${sl}.geosar" --gt="${srvdir}/DAT/GEOSAR/${ms}.geosar" --slcout="${srvdir}/SLC_CI2/${sl}_SLC.ci2" --go="${srvdir}/DAT/GEOSAR/${sl}.geosar" --exedir="${exedir}"  --tmpdir="${srvdir}/TEMP/"  > "${srvdir}/log/resamp_${sl}.log" 2<&1
+	status=$?
+	[ $status -ne 0 ] && return $status
+	
+	#re-create the slave multilook 
+	echo "${srvdir}/DAT/GEOSAR/${sl}.geosar" | ml_all.pl --type=byt --mlaz=${mlaz} --mlran=${mlran} --dir="${serverdir}/SLC_CI2/" >> "${serverdir}/log/ml.log" 2<&1
+    fi
+    
+    return 0
+}
+
 #setup the Diapason environment
 export LANGUE=en
 export PERL5LIB=/opt/diapason/pldiap/lib
@@ -635,6 +669,9 @@ ls "${serverdir}"/ORB/*.orb | alt_ambig.pl --geosar="${serverdir}/DAT/GEOSAR/${o
 
 
 find "${serverdir}/DAT/GEOSAR/" -iname "*.geosar"  -print | ml_all.pl --type=byt --mlaz=${MLAZ} --mlran=${MLRAN} --dir="${serverdir}/SLC_CI2/" > "${serverdir}/log/ml.log" 2<&1
+
+#resampling
+check_resampling "${serverdir}" "${orbitmaster}" "${orbitslave}" "${MLAZ}" "${MLRAN}"
 
 #precise sm
 [ "$S1FLAG" != "YES" ] && precise_sm.pl --sm="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --serverdir="${serverdir}" --rlcheck --recor --demdesc="${DEM}" --exedir="${EXE_DIR}" > "${serverdir}/log/precise_${orbitmaster}.log" 2<&1
