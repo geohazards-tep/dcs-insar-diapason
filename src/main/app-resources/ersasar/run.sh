@@ -85,7 +85,7 @@ function demDownload()
 	return ${ERRGENERIC}
     fi
     
-    url="http://www.altamira-information.com/demdownload?lat="${latitudes[0]}"&lat="${latitudes[1]}"&lon="${longitudes[0]}"&lon="${longitudes[1]}
+    url="http://dedibox.altamira-information.com/demdownload?lat="${latitudes[0]}"&lat="${latitudes[1]}"&lon="${longitudes[0]}"&lon="${longitudes[1]}
     
     ciop-log "INFO"  "Downloading DEM from ${url}"
     
