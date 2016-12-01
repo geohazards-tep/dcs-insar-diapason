@@ -5,13 +5,13 @@
       <streamingExecutable>/application/aux/run.sh</streamingExecutable>
     <defaultParameters>
       	<parameter id="aux_catalogue">http://catalogue.terradue.int/catalogue/search</parameter>
-      	<parameter id="slave" title="InSAR Slave product catalogue entry" abstract="Define the Slave product. The product is passed by references to catalogue entries"/>
+      	<parameter id="slave" title="InSAR Slave product catalogue entry" abstract="Define the Slave product. The product is passed by references to catalogue entries" maxOccurs="1"/>
     </defaultParameters>  
     </jobTemplate>
     <jobTemplate id="ersasar">
       <streamingExecutable>/application/ersasar/run.sh</streamingExecutable>
       <defaultParameters>
-	<parameter id="polarization" title="polarization" abstract="Polarization (ignored for ERS,ENVISAT , used for Sentinel-1 only)"  scope="runtime">
+	<parameter id="polarization" title="polarization" abstract="Polarization (ignored for ERS,ENVISAT , used for Sentinel-1 only)"  scope="runtime" maxOccurs="1">
 	  <options>
 	    <option>VV</option>
 	    <option>VH</option>
@@ -21,13 +21,13 @@
 	  </options>
 	  
 	</parameter>
-	<parameter id="aoi" title="Area Of Interest" abstract="Restrict processing to selected area [minlon,minlat,maxlon,maxlat]."  scope="runtime"  target="geo:box" type="BoundingBoxData" minOccurs="0"></parameter>
-	<parameter id="winazi" title="Correlation azimuth window size" abstract="Master/Slave correlation azimuth window size"  scope="runtime" >10</parameter>
-	<parameter id="winran" title="Correlation range window size" abstract="Master/Slave correlation range window size"  scope="runtime" >10</parameter>
-	<parameter id="expwinazi" title="Correlation azimuth search size" abstract="Master/Slave correlation azimuth search window size"  scope="runtime" >20</parameter>
-	<parameter id="expwinran" title="Correlation range search size" abstract="Master/Slave correlation range search window size"  scope="runtime" >10</parameter>
-	<parameter id="corrthr" title="Minimum Normalized correlation threshold" abstract="Minimum Normalized correlation threshold allowed" scope="runtime">0.3</parameter>
-	<parameter id="psfiltx" title="Goldstein phase filter exponential factor" abstract="Phase filter exponential factor" scope="runtime">0.5</parameter>
+	<parameter id="aoi" title="Area Of Interest" abstract="Restrict processing to selected area [minlon,minlat,maxlon,maxlat]."  scope="runtime"  target="geo:box" type="BoundingBoxData" minOccurs="0" maxOccurs="1"></parameter>
+	<parameter id="winazi" title="Correlation azimuth window size" abstract="Master/Slave correlation azimuth window size"  scope="runtime" maxOccurs="1">10</parameter>
+	<parameter id="winran" title="Correlation range window size" abstract="Master/Slave correlation range window size"  scope="runtime" maxOccurs="1">10</parameter>
+	<parameter id="expwinazi" title="Correlation azimuth search size" abstract="Master/Slave correlation azimuth search window size"  scope="runtime" maxOccurs="1">20</parameter>
+	<parameter id="expwinran" title="Correlation range search size" abstract="Master/Slave correlation range search window size"  scope="runtime" maxOccurs="1">10</parameter>
+	<parameter id="corrthr" title="Minimum Normalized correlation threshold" abstract="Minimum Normalized correlation threshold allowed" scope="runtime" maxOccurs="1">0.3</parameter>
+	<parameter id="psfiltx" title="Goldstein phase filter exponential factor" abstract="Phase filter exponential factor" scope="runtime" maxOccurs="1">0.5</parameter>
       </defaultParameters>
       <defaultJobconf>
 	<property id="mapred.task.timeout">9900000000</property>
@@ -39,7 +39,7 @@
 	<node id="node_aux">
 	<job id="aux" />
        	<sources>    
-		<source scope="runtime" id="master" title="inSAR master" abstract="inSAR  master" refid="string:list"></source>
+		<source scope="runtime" id="master" title="inSAR master" abstract="inSAR  master" refid="string:list" maxOccurs="1"></source>
 	</sources>
 	<parameters>
 		<parameter id="slave" scope="runtime"></parameter>
