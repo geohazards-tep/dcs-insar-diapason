@@ -812,7 +812,7 @@ create_interf_properties "`ls ${serverdir}/GEOCODE/coh*.tif | head -1`" "Interfe
 #first do the coherence and amplitude ,for which 0 is a no-data value
 for tif in `find "${serverdir}/GEOCODE/"*.tif* -print`; do
     target=${tif%.*}.png
-    gdal_translate -scale -oT UInt16 -of PNG -co worldfile=yes -a_nodata 0 "${tif}" "${target}" >> "${serverdir}"/log/ortho.log 2<&1
+    gdal_translate  -scale -oT Byte -of PNG -co worldfile=yes -a_nodata 0 "${tif}" "${target}" >> "${serverdir}"/log/ortho.log 2<&1
     #convert the world file to pngw extension
     wld=${target%.*}.wld
     pngw=${target%.*}.pngw
