@@ -320,12 +320,27 @@ function create_interf_properties()
     if [ $# -ge 5 ]; then
     geosars=$5
     fi
+    
+    local datestart=$(geosar_time "${geosarm}")
+    
+    local dateend=""
+    if [ -n "$geosars" ]; then
+	dateend=$(geosar_time "${geosars}")
+    fi
 
     local propfile="${inputfile}.properties"
-    echo "title = ${fbase}" > "${propfile}"
+    echo "title = DIAPASON InSAR Stripmap (SM) - ${description} - ${datestart} ${dateend}" > "${propfile}"
     echo "Description = ${description}" >> "${propfile}"
     local sensor=`grep -h "SENSOR NAME" "${geosarm}" | cut -b 40-1024 | awk '{print $1}'`
     echo "Sensor\ Name = ${sensor}" >> "${propfile}"
+    local masterid=`head -1 ${serverdir}/masterid.txt`
+    if [ -n "${masterid}" ]; then
+	echo "Master\ SLC\ Product = ${masterid}" >> "${propfile}"
+    fi 
+    local slaveid=`head -1 ${serverdir}/slaveid.txt`
+    if [ -n "${slaveid}" ]; then
+	echo "Slave\ SLC\ Product = ${slaveid}" >> "${propfile}"
+    fi 
 
     #look for 2jd utility to convert julian dates
     if [ -n "`type -p j2d`"  ] && [ -n "${geosars}" ]; then
@@ -343,6 +358,15 @@ function create_interf_properties()
 	   
 	fi
 	echo "Observation\ Dates = $dates" >> "${propfile}"
+	
+	local timeseparation=`echo "$jul1 - $jul2" | bc -l`
+	if [ $timeseparation -lt 0 ]; then
+	    timeseparation=`echo "$timeseparation*-1" | bc -l`
+	fi
+	
+	if [ -n "$timeseparation" ]; then
+	    echo "Time\ Separation\ \(days\) = ${timeseparation}" >> "${propfile}"
+	fi
     fi
 
     local altambig="${serverdir}/DAT/AMBIG.dat"
@@ -360,11 +384,147 @@ function create_interf_properties()
     else
 	ciop-log "INFO" "Missing AMBIG.DAT file in ${serverdir}/DAT"
     fi 
+    
+    local satpass=`grep -h "SATELLITE PASS" "${geosarm}"  | cut -b 40-1024 | awk '{print $1}'`
+    
+    if [ -n "${satpass}" ]; then
+	echo "Orbit\ Direction = ${satpass}" >> "${propfile}"
+    fi
 
     local publishdate=`date +'%B %d %Y' `
-    echo "Published = ${publishdate}" >> "${propfile}"
+    echo "Processing\ Date  = ${publishdate}" >> "${propfile}"
     
+    local logfile=`ls ${serverdir}/ortho_amp.log`
+    if [ -e "${logfile}" ]; then
+	local resolution=`grep "du mnt" "${logfile}" | cut -b 15-1024 | sed 's@[^0-9\.]@\n@g' | grep [0-9] | sort -n | tail -1`
+	if [ -n "${resolution}" ]; then
+	    echo "Resolution\ \(meters\) = ${resolution}" >> "${propfile}"
+	fi
+    fi
 
+    local wktfile="${serverdir}/wkt.txt"
+    
+    if [ -e "${wktfile}" ]; then
+	local wkt=`head -1 "${wktfile}"`
+	echo "geometry = ${wkt}" >> "${propfile}"
+    fi
+}
+
+
+# get suitable minimum and maximum image
+# values for histogram stretching
+# arguments:
+# input image
+# variable used to store minimum value
+# variable used to store maximum value
+# return 0 if successful , non-zero otherwise
+function image_equalize_range()
+{
+    if [ $# -lt 1 ]; then
+	return 255
+    fi 
+
+    #check gdalinfo is available
+    if [ -z "`type -p gdalinfo`" ]; then
+	return 1
+    fi
+
+    local image="$1"
+
+    
+    declare -A Stats
+    
+    #load the statistics information from gdalinfo into an associative array
+    while read data ; do
+	string=$(echo ${data} | awk '{print "Stats[\""$1"\"]=\""$2"\""}')
+	eval "$string"
+    done < <(gdalinfo -hist "${image}"   | grep STATISTICS | sed 's@STATISTICS_@@g;s@=@ @g')
+
+    #check that we have mean and standard deviation
+    local mean=${Stats["MEAN"]}
+    local stddev=${Stats["STDDEV"]}
+    local datamin=${Stats["MINIMUM"]}
+
+    if [ -z "$mean"   ] || [ -z "${stddev}" ] || [ -z "${datamin}" ]; then
+	return 1
+    fi 
+    
+   
+    local min=`echo $mean - 3*${stddev} | bc -l`
+    local max=`echo $mean + 3*${stddev} | bc -l`
+    
+    local below_zero=`echo "$min < $datamin" | bc -l`
+    
+    [ ${below_zero} -gt 0 ] && {
+	min=$datamin
+    }
+    
+    if [ $# -ge 2 ]; then
+	eval "$2=${min}"
+    fi
+
+    if [ $# -ge 3 ]; then
+	eval "$3=${max}"
+    fi
+
+   
+    return 0
+}
+
+function geosar_time()
+{
+    if [ $# -lt 1 ]; then
+	return $ERRMISSING
+    fi
+    local geosar="$1"
+    
+    local date=$(/usr/bin/perl <<EOF
+use POSIX;
+use strict;
+use esaTime;
+use geosar;
+
+my \$geosar=geosar->new(FILE=>'$geosar');
+my \$time=\$geosar->startTime();
+print \$time->xgr;
+EOF
+)
+
+    [ -z "$date" ] && {
+	return $ERRMISSING
+    }
+
+    echo $date
+    return 0
+}
+
+
+function tiff2wkt(){
+    
+    if [ $# -lt 1 ]; then
+	echo "Usage $0 geotiff"
+	return $ERRMISSING
+    fi
+    
+    tiff="$1"
+    
+    declare -a upper_left
+    upper_left=(`gdalinfo $tiff | grep "Upper Left" | sed 's@[,)(]@ @g' | awk '{print $3" "$4}'`)
+    
+    
+    declare -a lower_left
+    lower_left=(`gdalinfo $tiff | grep "Lower Left" | sed 's@[,)(]@ @g' | awk '{print $3" "$4}'`)
+
+    declare -a lower_right
+    lower_right=(`gdalinfo $tiff | grep "Lower Right" | sed 's@[,)(]@ @g' | awk '{print $3" "$4}'`)
+    
+    
+    declare -a upper_right
+    upper_right=(`gdalinfo $tiff | grep "Upper Right" | sed 's@[,)(]@ @g' | awk '{print $3" "$4}'`)
+    
+    echo "POLYGON((${upper_left[0]} ${upper_left[1]} , ${lower_left[0]} ${lower_left[1]},  ${lower_right[0]} ${lower_right[1]} , ${upper_right[0]} ${upper_right[1]}, ${upper_left[0]} ${upper_left[1]}))"
+   
+    return 0
 }
 
 
@@ -546,6 +706,11 @@ cd "${serverdir}/VOR"
 find . -iname "*.gz"  -exec gunzip '{}' \;
 find . -iname "*.tar" -exec tar -xvf '{}' \;
 cd -
+
+#
+opensearch-client -f atom "${MASTER}" identifier > ${serverdir}/masterid.txt
+opensearch-client -f atom "${SLAVE}" identifier > ${serverdir}/slaveid.txt
+
 
 vorcontents=$(ls -l ${serverdir}/VOR)
 
@@ -765,7 +930,7 @@ coreg.pl --master="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --prog=correl_
 
 #ML Interf
 ciop-log "INFO"  "Running ML  Interferogram Generation"
-interf_sar.pl --master="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --slave="${serverdir}/DAT/GEOSAR/${orbitslave}.geosar" --ci2slave="${serverdir}"/GEO_CI2/geo_"${orbitslave}"_"${orbitmaster}".rad  --demdesc="${DEM}" --outdir="${serverdir}/DIF_INT" --exedir="${EXE_DIR}" --mlaz="${MLAZ}" --mlran="${MLRAN}" --amp --coh --nobort --noran --noinc --ortho --psfilt --orthodir="${serverdir}/GEOCODE" --psfiltx="${psfiltx}"  > "${serverdir}/log/interf.log" 2<&1
+interf_sar.pl --master="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --slave="${serverdir}/DAT/GEOSAR/${orbitslave}.geosar" --ci2slave="${serverdir}"/GEO_CI2/geo_"${orbitslave}"_"${orbitmaster}".rad  --demdesc="${DEM}" --outdir="${serverdir}/DIF_INT" --exedir="${EXE_DIR}" --mlaz=1 --mlran=1 --winazi="${MLAZ}" --winran="${MLRAN}" --amp --coh --nobort --noran --noinc --ortho --psfilt --orthodir="${serverdir}/GEOCODE" --psfiltx="${psfiltx}"  > "${serverdir}/log/interf.log" 2<&1
  
 #11 Interf
 ciop-log "INFO"  "Running Full resolution Interferogram Generation"
@@ -774,8 +939,10 @@ ciop-log "INFO"  "Running Full resolution Interferogram Generation"
  
 #ortho
 ciop-log "INFO"  "Running InSAR results ortho-projection"
-#ortho.pl --geosar="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --odir="${serverdir}/GEOCODE" --exedir="${EXE_DIR}" --tag="${orbitmaster}_${orbitslave}" --cplx --amp="${serverdir}/DIF_INT/amp_${orbitmaster}_${orbitslave}_ml11.r4" --pha="${serverdir}/DIF_INT/pha_${orbitmaster}_${orbitslave}_ml11.pha"  > "${serverdir}"/log/ortho.log 2<&1
+ortho.pl --geosar="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --odir="${serverdir}/GEOCODE" --exedir="${EXE_DIR}" --tag="amp_${orbitmaster}_${orbitslave}_ml11" --in="${serverdir}/DIF_INT/amp_${orbitmaster}_${orbitslave}_ml11.r4"   > "${serverdir}"/log/ortho.log 2<&1
  
+cp "${serverdir}"/log/ortho.log ${serverdir}/ortho_amp.log
+
  #ortho ML
 #ortho.pl --geosar="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --odir="${serverdir}/GEOCODE" --exedir="${EXE_DIR}" --tag="${orbitmaster}_${orbitslave}_ml"  --mlaz="${MLAZ}" --mlran="${MLRAN}" --cplx --amp="${serverdir}/DIF_INT/amp_${orbitmaster}_${orbitslave}_ml${MLAZ}${MLRAN}.r4" --pha="${serverdir}/DIF_INT/pha_${orbitmaster}_${orbitslave}_ml${MLAZ}${MLRAN}.pha"  > "${serverdir}"/log/ortho_ml.log 2<&1
 
@@ -783,12 +950,12 @@ ciop-log "INFO"  "Running InSAR results ortho-projection"
 #ortho.pl --geosar="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --odir="${serverdir}/GEOCODE" --exedir="${EXE_DIR}" --tag="coh_${orbitmaster}_${orbitslave}_ml"  --mlaz="${MLAZ}" --mlran="${MLRAN}" --in="${serverdir}/DIF_INT/coh_${orbitmaster}_${orbitslave}_ml${MLAZ}${MLRAN}.rad"   > "${serverdir}"/log/ortho_ml_coh.log 2<&1
 
 #creating geotiff results
-ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/coh_${orbitmaster}_${orbitslave}_ml${MLAZ}${MLRAN}_ortho.rad" --demdesc="${DEM}" --outfile="${serverdir}/GEOCODE/coh_${orbitmaster}_${orbitslave}_ml_ortho.tif" >> "${serverdir}"/log/ortho_ml_coh.log 2<&1
+ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/coh_${orbitmaster}_${orbitslave}_ml11_ortho.rad" --demdesc="${DEM}" --outfile="${serverdir}/GEOCODE/coh_${orbitmaster}_${orbitslave}_ml_ortho.tif" >> "${serverdir}"/log/ortho_ml_coh.log 2<&1
 
 #ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/pha_${orbitmaster}_${orbitslave}_ortho.rad" --demdesc="${DEM}"  --alpha="${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_ortho.rad" --mask   --outfile="${serverdir}/GEOCODE/pha_${orbitmaster}_${orbitslave}_ortho.tif" --colortbl=BLUE-RED  >> "${serverdir}"/log/ortho.log 2<&1
-ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/psfilt_${orbitmaster}_${orbitslave}_ml${MLAZ}${MLRAN}_ortho.rad" --demdesc="${DEM}"  --alpha="${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_ml${MLAZ}${MLRAN}_ortho.rad" --mask   --outfile="${serverdir}/GEOCODE/pha_${orbitmaster}_${orbitslave}_ortho.tif" --colortbl=BLUE-RED  >> "${serverdir}"/log/ortho.log 2<&1
+ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/psfilt_${orbitmaster}_${orbitslave}_ml11_ortho.rad" --demdesc="${DEM}"  --alpha="${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_ml11_ortho.rad" --mask   --outfile="${serverdir}/GEOCODE/pha_${orbitmaster}_${orbitslave}_ortho.tif" --colortbl=BLUE-RED  >> "${serverdir}"/log/ortho.log 2<&1
 
-ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_ml${MLAZ}${MLRAN}_ortho.rad" --demdesc="${DEM}" --outfile="${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_ortho.tif" >> "${serverdir}"/log/ortho.log 2<&1
+ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_ml11_ortho.rad" --demdesc="${DEM}" --outfile="${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_ortho.tif" >> "${serverdir}"/log/ortho.log 2<&1
 
 
 #publish results
@@ -796,15 +963,12 @@ ciop-log "INFO"  "Processing Ended. Publishing results"
 
 #restrict the output extent so that it matches the aoi
 [ -n "${inputaoi}" ] &&  crop_geotiff2_to_aoi "${serverdir}" "${inputaoi}"
-#generated ortho files
-ciop-publish -m "${serverdir}"/GEOCODE/*.tif
 
-#create properties files for each geotiff
-create_interf_properties "`ls ${serverdir}/GEOCODE/amp*.tif | head -1`" "Interferometric Amplitude" "${serverdir}" "${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" "${serverdir}/DAT/GEOSAR/${orbitslave}.geosar"
+#generate wkt info file
+wkt=$(tiff2wkt "`ls ${serverdir}/GEOCODE/amp*.tif | head -1`")
 
-create_interf_properties "`ls ${serverdir}/GEOCODE/pha*.tif | head -1`" "Interferometric Phase" "${serverdir}" "${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" "${serverdir}/DAT/GEOSAR/${orbitslave}.geosar"
+echo "${wkt}" > ${serverdir}/wkt.txt
 
-create_interf_properties "`ls ${serverdir}/GEOCODE/coh*.tif | head -1`" "Interferometric Coherence" "${serverdir}" "${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" "${serverdir}/DAT/GEOSAR/${orbitslave}.geosar"
 
     
 #convert all the tif files to png so that the results can be seen on the GeoBrowser
@@ -812,7 +976,21 @@ create_interf_properties "`ls ${serverdir}/GEOCODE/coh*.tif | head -1`" "Interfe
 #first do the coherence and amplitude ,for which 0 is a no-data value
 for tif in `find "${serverdir}/GEOCODE/"*.tif* -print`; do
     target=${tif%.*}.png
-    gdal_translate  -scale -oT Byte -of PNG -co worldfile=yes -a_nodata 0 "${tif}" "${target}" >> "${serverdir}"/log/ortho.log 2<&1
+    #special case of amplitude image
+    fname=`basename $tif`
+    isamp=`echo $fname | grep "amp.*\.tif"`
+    scaleopt=""
+    pxtp="Byte"
+    if [ -n "${isamp}" ]; then
+	#get min and max values passed to -scale option of gdal_translate
+	image_equalize_range "${tif}" scalemin scalemax
+	status=$?
+	[ $status -eq 0 ] && {
+	    scaleopt="${scalemin} $scalemax 0 65535"
+	}
+	pxtp=UInt16
+    fi
+    gdal_translate -scale ${scaleopt} -oT ${pxtp} -of PNG -co worldfile=yes -a_nodata 0 "${tif}" "${target}" >> "${serverdir}"/log/ortho.log 2<&1
     #convert the world file to pngw extension
     wld=${target%.*}.wld
     pngw=${target%.*}.pngw
@@ -827,7 +1005,6 @@ fi
 
 #publish png and their pngw files
 ciop-publish -m "${serverdir}"/GEOCODE/*.png
-ciop-publish -m "${serverdir}"/GEOCODE/*.pngw
 
 create_interf_properties "`ls ${serverdir}/GEOCODE/amp*.png | head -1`" "Interferometric Amplitude" "${serverdir}" "${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" "${serverdir}/DAT/GEOSAR/${orbitslave}.geosar"
 
