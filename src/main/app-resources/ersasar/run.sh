@@ -219,7 +219,7 @@ return 1
     eval "${cmdlll}"
     
     if [ -z "${EXE_DIR}" ]; then
-	EXE_DIR=/mnt/DATA/DISK/TEMP/DIAP_TEMP/install/exe.dir/
+	EXE_DIR=/opt/diapason/exe.dir/
     fi
     
     roi=$(sarovlp.pl --geosarm="$geosar" --geosars="${tmpgeosar}" --exedir="${EXE_DIR}")
@@ -569,7 +569,8 @@ expwinran=(`ciop-getparam expwinran`)
 corrthr=(`ciop-getparam corrthr`)
 #psfilt option
 psfiltx=(`ciop-getparam psfiltx`)
-
+#unwrap option
+unwrap=(`ciop-getparam unwrap`)
 # read inputs from stdin
 # the input is  a colon-separated line, first record is master image
 #second record is slave image
@@ -778,6 +779,10 @@ for geosar in  `find "${serverdir}"/DAT/GEOSAR/ -iname "*.geosar" -print`; do
 		msg=`cat "${serverdir}/log/precise_orbits.log"`
 		ciop-log "INFO" "${msg}"
 		diaporb.pl --geosar="${geosar}" --type=doris   --outdir="${serverdir}/ORB" --exedir="${EXE_DIR}" >> "${serverdir}/log/precise_orbits.log" 2<&1
+		storb=$?
+		if [ $storb -ne 0 ]; then
+		    diaporb.pl --geosar="${geosar}" --type=delft   --outdir="${serverdir}/ORB" --exedir="${EXE_DIR}" >> "${serverdir}/log/precise_orbits.log" 2<&1
+		fi
 	    fi
 	    ;;
 	S1*) diaporb.pl --geosar="${geosar}" --type=s1prc  --dir="${serverdir}/TEMP" --mode=1 --outdir="${serverdir}/ORB" --exedir="${EXE_DIR}" >> "${serverdir}/log/precise_orbits.log" 2<&1 
@@ -953,7 +958,7 @@ cp "${serverdir}"/log/ortho.log ${serverdir}/ortho_amp.log
 ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/coh_${orbitmaster}_${orbitslave}_ml11_ortho.rad" --demdesc="${DEM}" --outfile="${serverdir}/GEOCODE/coh_${orbitmaster}_${orbitslave}_ml_ortho.tif" >> "${serverdir}"/log/ortho_ml_coh.log 2<&1
 
 #ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/pha_${orbitmaster}_${orbitslave}_ortho.rad" --demdesc="${DEM}"  --alpha="${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_ortho.rad" --mask   --outfile="${serverdir}/GEOCODE/pha_${orbitmaster}_${orbitslave}_ortho.tif" --colortbl=BLUE-RED  >> "${serverdir}"/log/ortho.log 2<&1
-ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/psfilt_${orbitmaster}_${orbitslave}_ml11_ortho.rad" --demdesc="${DEM}"  --alpha="${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_ml11_ortho.rad" --mask   --outfile="${serverdir}/GEOCODE/pha_${orbitmaster}_${orbitslave}_ortho.tif" --colortbl=BLUE-RED  >> "${serverdir}"/log/ortho.log 2<&1
+ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/psfilt_${orbitmaster}_${orbitslave}_ml11_ortho.rad" --demdesc="${DEM}"  --alpha="${serverdir}/GEOCODE/coh_${orbitmaster}_${orbitslave}_ml11_ortho.rad" --mask --min=1 --max=255   --outfile="${serverdir}/GEOCODE/pha_${orbitmaster}_${orbitslave}_ortho.tif" --colortbl=BLUE-RED  >> "${serverdir}"/log/ortho.log 2<&1
 
 ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_ml11_ortho.rad" --demdesc="${DEM}" --outfile="${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_ortho.tif" >> "${serverdir}"/log/ortho.log 2<&1
 
@@ -1014,6 +1019,91 @@ create_interf_properties "`ls ${serverdir}/GEOCODE/coh*.png | head -1`" "Interfe
 
 ciop-publish -m "${serverdir}"/GEOCODE/*.properties
 
+#unwrap
+if [ "${unwrap}" == "true"  ]; then
+    ciop-log "INFO"  "Configuring phase unwrapping"
+    
+    
+
+    unwmlaz=`echo "${MLAZ}*2" | bc -l`
+    unwmlran=`echo "${MLRAN}*2" | bc -l`
+    
+    interf_sar.pl --master="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --slave="${serverdir}/DAT/GEOSAR/${orbitslave}.geosar" --ci2slave="${serverdir}"/GEO_CI2/geo_"${orbitslave}"_"${orbitmaster}".rad  --demdesc="${DEM}" --outdir="${serverdir}/DIF_INT" --exedir="${EXE_DIR}"  --mlaz="${unwmlaz}" --mlran="${unwmlran}" --amp --coh --bort --ran --inc  > "${serverdir}/log/interf_mlunw.log" 2<&1
+    
+    
+
+    snaphucfg="/${serverdir}/TEMP/snaphu_template.txt"
+    cp /opt/diapason/gep.dir/snaphu_template.txt "${snaphucfg}"
+    chmod 775 "${snaphucfg}"
+    
+#compute additionnal parameters passed to snaphu                                                                     
+    
+#BPERP                                                                                                               
+    bortfile=${serverdir}/DIF_INT/bort_${orbitmaster}_${orbitslave}_ml${unwmlaz}${unwmlran}.r4
+
+    bperp=`view_raster.pl --file="${bortfile}" --type=r4 --count=1000 | awk '{v = $1 ; avg += v ;} END { print avg/NR }'`
+    echo "BPERP ${bperp}" >> "${snaphucfg}"
+    
+    lnspc=`grep "LINE SPACING" "${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" | cut -b 40-1024 | sed 's@[[:space:]]@@g'`
+    colspc=`grep "PIXEL SPACING RANGE" "${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" | cut -b 40-1024 | sed 's@[[:space:]]@@g'`
+    mlslres=`echo "${colspc}*${unwmlran}"  | bc -l`
+    mlazres=`echo "${lnspc}*${unwmlran}"  | bc -l`
+    
+    echo "RANGERES ${mlslres}" >> "${snaphucfg}"
+    echo "AZRES ${mlazres}" >> "${snaphucfg}"
+    
+    snaphutemp="${serverdir}/TEMP/saphu_parm"
+    
+#now write the geosar inferred parameters                                                             
+    ${EXE_DIR}/dump_snaphu_params  >  "${snaphutemp}"   <<EOF  
+${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar
+EOF
+    
+    grep [0-9] "${snaphutemp}" | grep -iv diapason >> "${snaphucfg}"
+    
+#unwrapped phase
+    unwpha="${serverdir}/DIF_INT/unw_${orbitmaster}_${orbitslave}_ml${unwmlaz}${unwmlran}.r4"
+#amplitude
+    amp="${serverdir}/DIF_INT/amp_${orbitmaster}_${orbitslave}_ml${unwmlaz}${unwmlran}.r4"
+#coherence     
+    coh="${serverdir}/DIF_INT/coh_${orbitmaster}_${orbitslave}_ml${unwmlaz}${unwmlran}.byt"
+    
+    echo "OUTFILE ${unwpha}" >> "${snaphucfg}"
+    echo "AMPFILE ${amp}" >> "${snaphucfg}"
+    echo "CORRFILE ${coh}" >> "${snaphucfg}"
+    
+    export WDIR="${serverdir}/DIF_INT"
+
+#make a copy of the snaphu configuration as ad_unwrap.sh deletes the file
+    
+    cfgtemp="${serverdir}/TEMP/snaphu_configuration.txt"
+    
+    cp "${snaphucfg}" "${cfgtemp}"
+    
+    cp "${cfgtemp}" /tmp
+    unwrapinput="${serverdir}/DIF_INT/pha_${orbitmaster}_${orbitslave}_ml${unwmlaz}${unwmlran}.pha"
+    unwrapcmd="/opt/diapason/gep.dir/ad_unwrap.sh \"${cfgtemp}\" \"${unwrapinput}\""
+    
+    ciop-log "INFO"  "Running phase unwrapping"
+    cd ${serverdir}/TEMP
+    touch fcnts.sh
+    chmod 775 fcnts.sh
+    eval "${unwrapcmd}" > ${serverdir}/log/unwrap.log 2<&1
+    cd -
+    if [ -e "${unwpha}" ]; then
+	#run ortho on unwrapped phase
+	ciop-log "INFO"  "Running Unwrapping results ortho-projection"
+	ortho.pl --geosar="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --real  --mlaz="${unwmlaz}" --mlran="${unwmlran}"  --odir="${serverdir}/GEOCODE" --exedir="${EXE_DIR}" --tag="unw_${orbitmaster}_${orbitslave}_ml${unwmlaz}${unwmlran}" --in="${unwpha}"   > "${serverdir}"/log/ortho_unw.log 2<&1
+	ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/unw_${orbitmaster}_${orbitslave}_ml${unwmlaz}${unwmlran}_ortho.rad" --alpha="${serverdir}/GEOCODE/coh_${orbitmaster}_${orbitslave}_ml11_ortho.rad" --mask --min=1 --max=255 --colortbl=BLUE-RED  --demdesc="${DEM}" --outfile="${serverdir}/GEOCODE/unw_${orbitmaster}_${orbitslave}_ortho.tif" >> "${serverdir}"/log/ortho_unw.log 2<&1
+	unwtif="${serverdir}/GEOCODE/unw_${orbitmaster}_${orbitslave}_ortho.tif"
+	[ -n "${unwtif}" ] && convert -alpha activate "${unwtif}" "${unwtif%.*}.png"
+	create_interf_properties "`ls ${serverdir}/GEOCODE/unw*.png | head -1`" "Unwrapped Phase" "${serverdir}" "${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" "${serverdir}/DAT/GEOSAR/${orbitslave}.geosar"
+	ciop-publish -m ${serverdir}/GEOCODE/unw*.png
+	ciop-publish -m ${serverdir}/GEOCODE/unw*.properties
+	
+    fi
+    
+fi
 
 #processing log files
 logzip="${serverdir}/TEMP/logs.zip"
