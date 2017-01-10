@@ -28,6 +28,13 @@
 	<parameter id="expwinran" title="Correlation range search size" abstract="Master/Slave correlation range search window size"  scope="runtime" maxOccurs="1">10</parameter>
 	<parameter id="corrthr" title="Minimum Normalized correlation threshold" abstract="Minimum Normalized correlation threshold allowed" scope="runtime" maxOccurs="1">0.3</parameter>
 	<parameter id="psfiltx" title="Goldstein phase filter exponential factor" abstract="Phase filter exponential factor" scope="runtime" maxOccurs="1">0.5</parameter>
+	<parameter id="unwrap" title="Phase Unwrapping" abstract="Unwrap the interferogram" scope="runtime" maxOccurs="1">
+	  <options>
+	    <option>true</option>
+	    <option>false</option>
+	    <default>false</default>
+	  </options>
+	</parameter>
       </defaultParameters>
       <defaultJobconf>
 	<property id="mapred.task.timeout">9900000000</property>
