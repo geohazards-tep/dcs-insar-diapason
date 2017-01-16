@@ -1047,7 +1047,7 @@ if [ "${unwrap}" == "true"  ]; then
     lnspc=`grep "LINE SPACING" "${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" | cut -b 40-1024 | sed 's@[[:space:]]@@g'`
     colspc=`grep "PIXEL SPACING RANGE" "${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" | cut -b 40-1024 | sed 's@[[:space:]]@@g'`
     mlslres=`echo "${colspc}*${unwmlran}"  | bc -l`
-    mlazres=`echo "${lnspc}*${unwmlran}"  | bc -l`
+    mlazres=`echo "${lnspc}*${unwmlaz}"  | bc -l`
     
     echo "RANGERES ${mlslres}" >> "${snaphucfg}"
     echo "AZRES ${mlazres}" >> "${snaphucfg}"
