@@ -909,7 +909,9 @@ find "${serverdir}/DAT/GEOSAR/" -iname "*.geosar"  -print | ml_all.pl --type=byt
 check_resampling "${serverdir}" "${orbitmaster}" "${orbitslave}" "${MLAZ}" "${MLRAN}"
 
 #precise sm
-[ "$S1FLAG" != "YES" ] && precise_sm.pl --sm="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --serverdir="${serverdir}" --rlcheck --recor --demdesc="${DEM}" --exedir="${EXE_DIR}" > "${serverdir}/log/precise_${orbitmaster}.log" 2<&1
+[ "$S1FLAG" != "YES" ] && precise_sm.pl --sm="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --serverdir="${serverdir}" --rlcheck --recor --demdesc="${DEM}" --exedir="${EXE_DIR}" > "${serverdir}/log/precise_${orbitmaster}.log" 2<&1 
+    
+
 
 [ "$S1FLAG" == "YES" ] && precise_sm.pl --sm="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --serverdir="${serverdir}" --recor --demdesc="${DEM}" --exedir="${EXE_DIR}" --noroughlock --shiftaz=0 --shiftran=0 > "${serverdir}/log/precise_${orbitmaster}.log" 2<&1
 
@@ -927,6 +929,14 @@ check_resampling "${serverdir}" "${orbitmaster}" "${orbitslave}" "${MLAZ}" "${ML
 ciop-log "INFO"  "Running Image Coregistration"
 coreg.pl --master="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --prog=correl_window --expwinazi="${expwinazi}" --expwinran="${expwinran}" --winazi="${winazi}" --winran="${winran}" --thr="${corrthr}" --slave="${serverdir}/DAT/GEOSAR/${orbitslave}.geosar" --griddir="${serverdir}/GRID" --outdir="${serverdir}/GEO_CI2" --mltype=byt  --demdesc="${DEM}" --exedir="${EXE_DIR}" > "${serverdir}"/log/coregistration.log 2<&1
 
+corstatus=$?
+ 
+[ $corstatus -ne 0 ] && {
+    ciop-log "ERROR" "Image coregistration failed"
+    procCleanup
+    exit ${ERRGENERIC}
+}
+
 #fine coregistration
 #lincor.pl --geosardir="${serverdir}/DAT/GEOSAR" --exedir="${EXE_DIR}" --smresamp="${serverdir}/SLC_CI2/${orbitmaster}_SLC.ci2" --ci2slave="${serverdir}/GEO_CI2/geo_${orbitslave}_${orbitmaster}.ci2" --outdir="${serverdir}/GEO_CI2_EXT_LIN" --griddir="${serverdir}/GRID_LIN" --interpx=1 --mlaz="${MLAZ}" --mlran="${MLRAN}" --gsm="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --gsl="${serverdir}/DAT/GEOSAR/${orbitslave}.geosar" --azinterval=20 --rainterval=20 --expwinazi=5 --expwinran=5 --demdesc="${DEM}" >> "${serverdir}"/log/lincor.log 2<&1
 
@@ -936,7 +946,15 @@ coreg.pl --master="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --prog=correl_
 #ML Interf
 ciop-log "INFO"  "Running ML  Interferogram Generation"
 interf_sar.pl --master="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --slave="${serverdir}/DAT/GEOSAR/${orbitslave}.geosar" --ci2slave="${serverdir}"/GEO_CI2/geo_"${orbitslave}"_"${orbitmaster}".rad  --demdesc="${DEM}" --outdir="${serverdir}/DIF_INT" --exedir="${EXE_DIR}" --mlaz=1 --mlran=1 --winazi="${MLAZ}" --winran="${MLRAN}" --amp --coh --nobort --noran --noinc --ortho --psfilt --orthodir="${serverdir}/GEOCODE" --psfiltx="${psfiltx}"  > "${serverdir}/log/interf.log" 2<&1
+
+interfstatus=$?
  
+[ $interfstatus -ne 0 ] && {
+    ciop-log "ERROR" "Interferogram generation failed"
+    procCleanup
+    exit ${ERRGENERIC}
+}
+
 #11 Interf
 ciop-log "INFO"  "Running Full resolution Interferogram Generation"
 #interf_sar.pl --master="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --slave="${serverdir}/DAT/GEOSAR/${orbitslave}.geosar" --ci2slave="${serverdir}"/GEO_CI2/geo_"${orbitslave}"_"${orbitmaster}".rad --outdir="${serverdir}/DIF_INT" --exedir="${EXE_DIR}" --mlaz=1 --mlran=1 --amp --nocoh --nobort --noran --noinc > "${serverdir}/log/interf.log" 2<&1
@@ -1100,7 +1118,11 @@ EOF
 	create_interf_properties "`ls ${serverdir}/GEOCODE/unw*.png | head -1`" "Unwrapped Phase" "${serverdir}" "${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" "${serverdir}/DAT/GEOSAR/${orbitslave}.geosar"
 	ciop-publish -m ${serverdir}/GEOCODE/unw*.png
 	ciop-publish -m ${serverdir}/GEOCODE/unw*.properties
-	
+
+    else
+	ciop-log "ERROR" "Phase unwrapping failed"
+	procCleanup
+	exit ${ERRGENERIC}
     fi
     
 fi
