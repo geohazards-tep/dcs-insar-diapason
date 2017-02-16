@@ -4,7 +4,7 @@
     <jobTemplate id="aux">
       <streamingExecutable>/application/aux/run.sh</streamingExecutable>
     <defaultParameters>
-      	<parameter id="aux_catalogue">http://catalogue.terradue.int/catalogue/search</parameter>
+      	<parameter id="aux_catalogue">https://catalog.terradue.com/envisat/search</parameter>
       	<parameter id="slave" title="InSAR Slave product catalogue entry" abstract="Define the Slave product. The product is passed by references to catalogue entries" maxOccurs="1"/>
     </defaultParameters>  
     </jobTemplate>
