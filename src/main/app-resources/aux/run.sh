@@ -30,35 +30,37 @@ cat_osd_root="`ciop-getparam aux_catalogue`"
 
 
 function getAUXref() {
-  local rdf=$1
-  local ods=$2
-  ciop-log "INFO" "rdf is $rdf"
-  ciop-log "INFO" "ods is $ods"
-  ciop-log "INFO" "opensearch-client $rdf startdate | tr -d Z"
-  startdate=`opensearch-client $rdf startdate | tr -d "Z"`
-  [ -z "$startdate" ] && exit $ERR_NOSTARTDATE
-  stopdate=`opensearch-client $rdf enddate | tr -d "Z"`
-  [ -z "$stopdate" ] && exit $ERR_NOSTOPDATE
-  aufRef=$(opensearch-client -f Rdf -p "time:start=$startdate" -p "time:end=$stopdate" $ods)
-  res=$?
-  [ ${res} -ne 0 ] && return ${res}
-  aufRef=$( echo "$aufRef"  | tail -1)
-  ciop-log "INFO" "AUFREF IS $aufRef"
-  ciop-log "INFO" "opensearch-client -f Rdf -p time:start=$startdate -p time:end=$stopdate $ods"
-  echo $aufRef
+
+  local atom=$1
+  local osd=$2
+  local series=$3 
+ 
+  startdate=$( opensearch-client ${atom} startdate | tr -d "Z")
+  [ -z "${startdate}" ] && return ${ERR_NOSTARTDATE}
+  
+  stopdate=$( opensearch-client ${atom} enddate | tr -d "Z")
+  [ -z "${stopdate}" ] && return ${ERR_NOENDDATE}
+  
+  ref="$( opensearch-client -p "pi=${series}" -p "time:start=${startdate}" -p "time:end=${stopdate}" ${osd} )" 
+  [ -z "${ref}" ] && return ${ERR_AUXREF}
+  
+  echo ${ref}
+
 }
 
 function runAux() {
-	input=$1
+  local sar=$1
+  local osd=$2
+  
+  # DOR_VOR_AX
+  ciop-log "INFO" "Getting a reference to DOR_VOR_AX"
+  ref=$( getAUXref ${sar} ${osd} DOR_VOR_AX )        	
 	
-	# DOR_VOR_AX
-	ciop-log "INFO" "Getting a reference to DOR_VOR_AX"
-	ref=`getAUXref $input $cat_osd_root/DOR_VOR_AX/description`        	
-	#pass the aux reference to the next node
-        ciop-log "INFO" "VOR IS $ref"
-	[ "$ref" != " " ] || exit $ERR_VOR        		
-	# pass the SAR reference to the next node
-        echo $ref
+  ciop-log "INFO" "VOR IS $ref"
+  [ "$ref" != " " ] || exit $ERR_VOR        		
+
+  # pass the SAR reference to the next node
+  echo $ref
 }
 
 #main
@@ -67,10 +69,10 @@ do
 	ciop-log "INFO" "Master: $master"
 	slave="`ciop-getparam slave`"
 	ciop-log "INFO" "Slave: $slave"
-	masterOrb=$( echo `runAux $master` )
+	masterOrb=$( echo `runAux $master ${cat_osd_root}` )
 	resMaster=$?
 	[ "$resMaster" -ne 0 ] && exit $resMaster
-	slaveOrb=$( echo `runAux $slave` )
+	slaveOrb=$( echo `runAux $slave ${cat_osd_root}` )
 	resSlave=$?
         echo "$master@$masterOrb@$slave@$slaveOrb" | ciop-publish -s
 	exit $resSlave
