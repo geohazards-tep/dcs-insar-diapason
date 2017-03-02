@@ -1121,6 +1121,11 @@ if [ -n "`type -p convert`" ]; then
     [ -n "${unwtif}" ] && convert -alpha activate "${unwtif}" "${unwtif%.*}.png"
 fi
 
+#grayscale phase tiff results
+ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/unw_${orbitmaster}_${orbitslave}_ml${unwmlaz}${unwmlran}_ortho.rad"   --demdesc="${DEM}" --outfile="${serverdir}/GEOCODE/unw_${orbitmaster}_${orbitslave}_ortho.tif" >> "${serverdir}"/log/ortho_unw.log 2<&1
+ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/psfilt_${orbitmaster}_${orbitslave}_ml11_ortho.rad" --demdesc="${DEM}"  --outfile="${serverdir}/GEOCODE/pha_${orbitmaster}_${orbitslave}_ortho.tif"  >> "${serverdir}"/log/ortho.log 2<&1
+
+
 #publish png and their pngw files
 ciop-publish -m "${serverdir}"/GEOCODE/*.png
 
