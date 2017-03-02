@@ -1042,7 +1042,7 @@ EOF
     
     cp "${snaphucfg}" "${cfgtemp}"
     
-    cp "${cfgtemp}" /tmp
+    
     unwrapinput="${serverdir}/DIF_INT/pha_${orbitmaster}_${orbitslave}_ml${unwmlaz}${unwmlran}.pha"
     unwrapcmd="/opt/diapason/gep.dir/ad_unwrap.sh \"${cfgtemp}\" \"${unwrapinput}\""
     
@@ -1143,6 +1143,20 @@ cd "${serverdir}"
 zip "${logzip}" log/*
 ciop-publish -m "${logzip}"
 cd -
+
+#publish geotiff files
+mkdir -p ${serverdir}/GEOTIFF
+find ${serverdir}/GEOCODE/ -iname "*.tif" -exec mv '{}' ${serverdir}/GEOTIFF \;
+cd ${serverdir}/GEOTIFF
+prodzip="${serverdir}/GEOTIFF/products.zip"
+
+zip "${prodzip}" *.tif
+chmod 777 products.zip
+ciop-publish -m "${prodzip}"
+cd -
+
+
+
 
 #cleanup our processing directory
 procCleanup
