@@ -241,6 +241,99 @@ return 1
     
 }
 
+
+# create a shapefile from a bounding box string
+# arguments:
+# bounding box string of the form "minlon,minlat,maxlon,maxlat"
+# output diretory where shapefile shall be created
+# tag used to name the shapefile
+function aoi2shp()
+{
+    if [ $# -lt 3 ]; then
+	ciop-log "ERROR" "Usage:$FUNCTION minlon,minlat,maxlon,maxlat directory tag"
+	return ${ERRMISSING}
+    fi
+
+    local aoi="$1"
+
+    local directory="$2"
+
+    local tag="$3"
+
+    if [ ! -d "`readlink -f $directory`" ]; then
+	ciop-log "ERROR" "$FUNCTION:$directory is not a directory"
+	return ${ERRINVALID}
+    fi
+
+    #check for aoi validity
+    local aoiarr=(`echo ${aoi} | sed 's@,@ @g' `)
+
+    local nvalues=${#aoiarr[@]}
+
+    if [ $nvalues -lt 4 ]; then
+	ciop-log "ERROR" "$FUNCTION:Invalid aoi :$aoi"
+	ciop-log "ERROR" "$FUNCTION:Should be of the form: minlon,minlat,maxlon,maxlat"
+	return ${ERRINVALID}
+    fi
+
+    #use a variable for each
+    local maxlon=${aoiarr[2]}
+    local maxlat=${aoiarr[3]}
+    local minlon=${aoiarr[0]}
+    local minlat=${aoiarr[1]}
+
+    #check for shapelib utilities
+    if [ -z "`type -p shpcreate`" ]; then
+	ciop-log "ERROR" "Missing shpcreate utility"
+	return ${ERRMISSING}
+    fi
+
+    if [ -z "`type -p shpadd`" ]; then
+	ciop-log "ERROR" "Missing shpadd utility"
+	return ${ERRMISSING}
+    fi
+
+    #enter the output shapefile directory
+    cd "${directory}" || {
+	ciop-log "ERROR" "$FUNCTION:No permissions to access ${directory}"
+	cd -
+	return ${ERRPERM}
+}
+    
+
+    #create empty shapefile
+    shpcreate "${tag}" polygon
+    local statuscreat=$?
+
+    if [ ${statuscreat}  -ne 0 ]; then
+	cd -
+	ciop-log "ERROR" "$FUNCTION:Shapefile creation failed"
+	return ${ERRGENERIC}
+    fi 
+
+    shpadd "${tag}" "${minlon}" "${minlat}" "${maxlon}" "${minlat}" "${maxlon}" "${maxlat}"  "${minlon}" "${maxlat}" "${minlon}" "${minlat}"
+    
+    local statusadd=$?
+
+    if [ ${statusadd} -ne 0 ]; then
+	ciop-log "ERROR" "$FUNCTION:Failed to add polygon to shapefile"
+	return ${ERRGENERIC}
+    fi
+    
+  local shp=${directory}/${tag}.shp
+
+  if [ ! -e "${shp}" ]; then
+      cd -
+      ciop-log "ERROR" "$FUNCTION:Failed to create shapefile"
+      return ${ERRGENERIC}
+  fi
+
+  echo "${shp}"
+
+  return ${SUCCESS}
+
+ }
+
 #inputs : aoi_string and processing root dir
 function crop_geotiff2_to_aoi()
 {
@@ -260,12 +353,30 @@ function crop_geotiff2_to_aoi()
     
     local geotiff=""
     
+    local shape=""
+    local gdalcropbin="/opt/gdalcrop/bin/gdalcrop"
+
+    if [  -f "${gdalcropbin}" ]; then
+	shape=$(aoi2shp "$aoistr" "${tempo}" "AOI")
+	ciop-log "INFO" "Using shapefile ${shape}"
+    fi
+
     for geotiff in `find "${rootdir}/GEOCODE"  -iname "*.tiff" -print -o -iname "*.tif" -print`; do
 	target=${tempo}/`basename $geotiff`
-	gdalwarp -te ${aoi[0]} ${aoi[1]} ${aoi[2]} ${aoi[3]} -r bilinear "${geotiff}" "${target}" >> ${rootdir}/log/tiffcrop.log 2<&1
+	if [ -z "${shape}" ]; then
+	    gdalwarp -te ${aoi[0]} ${aoi[1]} ${aoi[2]} ${aoi[3]} -r bilinear "${geotiff}" "${target}" >> ${rootdir}/log/tiffcrop.log 2<&1
+	else
+	    ${gdalcropbin} "${geotiff}" "$shape" "${target}" >> ${rootdir}/log/tiffcrop.log 2<&1
+	fi
 	mv "${target}" "${geotiff}"
      done
     
+    if [ -n "$shape" ]; then
+	rm "${shape}"
+    fi
+    
+    ciop-log "INFO" "`cat ${rootdir}/log/tiffcrop.log`"
+
     return 0
 }
 
@@ -973,12 +1084,17 @@ cp "${serverdir}"/log/ortho.log ${serverdir}/ortho_amp.log
 #ortho.pl --geosar="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --odir="${serverdir}/GEOCODE" --exedir="${EXE_DIR}" --tag="coh_${orbitmaster}_${orbitslave}_ml"  --mlaz="${MLAZ}" --mlran="${MLRAN}" --in="${serverdir}/DIF_INT/coh_${orbitmaster}_${orbitslave}_ml${MLAZ}${MLRAN}.rad"   > "${serverdir}"/log/ortho_ml_coh.log 2<&1
 
 #creating geotiff results
-ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/coh_${orbitmaster}_${orbitslave}_ml11_ortho.rad" --demdesc="${DEM}" --outfile="${serverdir}/GEOCODE/coh_${orbitmaster}_${orbitslave}_ml_ortho.tif" >> "${serverdir}"/log/ortho_ml_coh.log 2<&1
+ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/coh_${orbitmaster}_${orbitslave}_ml11_ortho.rad" --demdesc="${DEM}"  --mask --min=1 --max=255 --colortbl=BLACK-WHITE  --outfile="${serverdir}/GEOCODE/coh_${orbitmaster}_${orbitslave}_ml_ortho.tif" >> "${serverdir}"/log/ortho_ml_coh.log 2<&1
+
+ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/coh_${orbitmaster}_${orbitslave}_ml11_ortho.rad" --demdesc="${DEM}"   --outfile="${serverdir}/GEOCODE/coh_${orbitmaster}_${orbitslave}_ml_ortho_grayscale.tif" >> "${serverdir}"/log/ortho_ml_coh.log 2<&1
 
 #ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/pha_${orbitmaster}_${orbitslave}_ortho.rad" --demdesc="${DEM}"  --alpha="${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_ortho.rad" --mask   --outfile="${serverdir}/GEOCODE/pha_${orbitmaster}_${orbitslave}_ortho.tif" --colortbl=BLUE-RED  >> "${serverdir}"/log/ortho.log 2<&1
 ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/psfilt_${orbitmaster}_${orbitslave}_ml11_ortho.rad" --demdesc="${DEM}"  --alpha="${serverdir}/GEOCODE/coh_${orbitmaster}_${orbitslave}_ml11_ortho.rad" --mask --min=1 --max=255   --outfile="${serverdir}/GEOCODE/pha_${orbitmaster}_${orbitslave}_ortho.tif" --colortbl=BLUE-RED  >> "${serverdir}"/log/ortho.log 2<&1
 
-ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_ml11_ortho.rad" --demdesc="${DEM}" --outfile="${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_ortho.tif" >> "${serverdir}"/log/ortho.log 2<&1
+ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_ml11_ortho.rad" --demdesc="${DEM}"    --outfile="${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_ortho_grayscale.tif" >> "${serverdir}"/log/ortho.log 2<&1
+
+ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_ml11_ortho.rad" --demdesc="${DEM}"    --outfile="${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_ortho.tif" --gep --mask --min=1 --max=255 --alpha="${serverdir}/GEOCODE/coh_${orbitmaster}_${orbitslave}_ml11_ortho.rad"   >> "${serverdir}"/log/ortho.log 2<&1
+
 
 
 #unwrap
@@ -1090,7 +1206,7 @@ echo "${wkt}" > ${serverdir}/wkt.txt
 #convert all the tif files to png so that the results can be seen on the GeoBrowser
 
 #first do the coherence and amplitude ,for which 0 is a no-data value
-for tif in `find "${serverdir}/GEOCODE/"*.tif* -print`; do
+for tif in `find "${serverdir}/GEOCODE/"*.tif* -print | grep -v grayscale`; do
     target=${tif%.*}.png
     #special case of amplitude image
     fname=`basename $tif`
@@ -1104,9 +1220,11 @@ for tif in `find "${serverdir}/GEOCODE/"*.tif* -print`; do
 	[ $status -eq 0 ] && {
 	    scaleopt="${scalemin} $scalemax 0 65535"
 	}
-	pxtp=UInt16
+	#pxtp=UInt16
+       
     fi
-    gdal_translate -scale ${scaleopt} -oT ${pxtp} -of PNG -co worldfile=yes -a_nodata 0 "${tif}" "${target}" >> "${serverdir}"/log/ortho.log 2<&1
+    #gdal_translate   -scale ${scaleopt} -oT ${pxtp} -of PNG -co worldfile=yes -a_nodata 0 "${tif}" "${target}" >> "${serverdir}"/log/ortho.log 2<&1
+    gdal_translate -oT ${pxtp}  -of PNG -co worldfile=yes -a_nodata 0 "${tif}" "${target}" >> "${serverdir}"/log/ortho.log 2<&1
     #convert the world file to pngw extension
     wld=${target%.*}.wld
     pngw=${target%.*}.pngw
@@ -1125,9 +1243,12 @@ fi
 ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/unw_${orbitmaster}_${orbitslave}_ml${unwmlaz}${unwmlran}_ortho.rad"   --demdesc="${DEM}" --outfile="${serverdir}/GEOCODE/unw_${orbitmaster}_${orbitslave}_ortho.tif" >> "${serverdir}"/log/ortho_unw.log 2<&1
 ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/psfilt_${orbitmaster}_${orbitslave}_ml11_ortho.rad" --demdesc="${DEM}"  --outfile="${serverdir}/GEOCODE/pha_${orbitmaster}_${orbitslave}_ortho.tif"  >> "${serverdir}"/log/ortho.log 2<&1
 
+mv "${serverdir}/GEOCODE/coh_${orbitmaster}_${orbitslave}_ml_ortho_grayscale.tif" "${serverdir}/GEOCODE/coh_${orbitmaster}_${orbitslave}_ml_ortho.tif"
+mv "${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_ortho_grayscale.tif" "${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_ortho.tif"
 
 #publish png and their pngw files
 ciop-publish -m "${serverdir}"/GEOCODE/*.png
+ciop-publish -m "${serverdir}"/GEOCODE/*.pngw
 
 create_interf_properties "`ls ${serverdir}/GEOCODE/amp*.png | head -1`" "Interferometric Amplitude" "${serverdir}" "${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" "${serverdir}/DAT/GEOSAR/${orbitslave}.geosar"
 
