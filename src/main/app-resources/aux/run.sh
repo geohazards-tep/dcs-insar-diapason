@@ -54,7 +54,7 @@ function runAux() {
   
   # DOR_VOR_AX
   ciop-log "INFO" "Getting a reference to DOR_VOR_AX"
-  ref=$( getAUXref ${sar} ${osd} DOR_VOR_AX )        	
+  ref=$( getAUXref ${sar} ${osd} DOR_VOR_AX | awk '{print $1}')        	
 	
   ciop-log "INFO" "VOR IS $ref"
   [ "$ref" != " " ] || exit $ERR_VOR        		
