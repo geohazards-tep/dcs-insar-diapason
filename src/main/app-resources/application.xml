@@ -1,26 +1,64 @@
 <?xml version="1.0" encoding="us-ascii"?>
 <application xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" id="my_application">
   <jobTemplates>
+    <jobTemplate id="aux">
+      <streamingExecutable>/application/aux/run.sh</streamingExecutable>
+    <defaultParameters>
+      	<parameter id="aux_catalogue">https://catalog.terradue.com/envisat/search</parameter>
+      	<parameter id="slave" title="InSAR Slave product catalogue entry" abstract="Define the Slave product. The product is passed by references to catalogue entries" maxOccurs="1"/>
+    </defaultParameters>  
+    </jobTemplate>
     <jobTemplate id="ersasar">
       <streamingExecutable>/application/ersasar/run.sh</streamingExecutable>
       <defaultParameters>
-	<parameter id="slave" title="inSAR slave" abstract="inSAR (ERS or ASAR product) slave"/>
+	<parameter id="polarization" title="polarization" abstract="Polarization (ignored for ERS,ENVISAT , used for Sentinel-1 only)"  scope="runtime" maxOccurs="1">
+	  <options>
+	    <option>VV</option>
+	    <option>VH</option>
+	    <option>HH</option>
+	    <option>HV</option>
+	    <default>VV</default>
+	  </options>
+	  
+	</parameter>
+	<parameter id="aoi" title="Area Of Interest" abstract="Restrict processing to selected area [minlon,minlat,maxlon,maxlat]."  scope="runtime"  target="geo:box" type="BoundingBoxData" minOccurs="0" maxOccurs="1"></parameter>
+	<parameter id="winazi" title="Correlation azimuth window size" abstract="Master/Slave correlation azimuth window size"  scope="runtime" maxOccurs="1">10</parameter>
+	<parameter id="winran" title="Correlation range window size" abstract="Master/Slave correlation range window size"  scope="runtime" maxOccurs="1">10</parameter>
+	<parameter id="expwinazi" title="Correlation azimuth search size" abstract="Master/Slave correlation azimuth search window size"  scope="runtime" maxOccurs="1">20</parameter>
+	<parameter id="expwinran" title="Correlation range search size" abstract="Master/Slave correlation range search window size"  scope="runtime" maxOccurs="1">10</parameter>
+	<parameter id="corrthr" title="Minimum Normalized correlation threshold" abstract="Minimum Normalized correlation threshold allowed" scope="runtime" maxOccurs="1">0.3</parameter>
+	<parameter id="psfiltx" title="Goldstein phase filter exponential factor" abstract="Phase filter exponential factor" scope="runtime" maxOccurs="1">0.5</parameter>
+	<parameter id="unwrap" title="Phase Unwrapping" abstract="Unwrap the interferogram" scope="runtime" maxOccurs="1">
+	  <options>
+	    <option>true</option>
+	    <option>false</option>
+	    <default>false</default>
+	  </options>
+	</parameter>
       </defaultParameters>
       <defaultJobconf>
 	<property id="mapred.task.timeout">9900000000</property>
       </defaultJobconf>
     </jobTemplate>
   </jobTemplates>
-    <workflow id="diapason" title="Diapason interferometric processor" abstract="Interferogram generation with DIAPASON" >
+    <workflow id="diapason" title="DIAPASON InSAR - StripMap(SM)" abstract="DIAPASON is an InSAR tool suite developed by the French Space Agency (CNES) and maintained by ALTAMIRA INFORMATION.This service performs an InSAR workflow on ENVISAT,ERS(RAW and SLC) or Sentinel-1 (SLC) stripmap data, producing interferograms, amplitude and coherence maps. To run this service , specify a master and a slave image of the same mission." >
     <workflowVersion>1.0</workflowVersion>
-    <node id="node_diap">
-      <job id="ersasar"/>
-      <sources>
-	<!--source scope="runtime" id="pairs" title="inSAR master/slave pair" abstract="inSAR (ERS or ASAR) master:slave pair separated by comma" refid="string:list">https://eo-virtual-archive4.esa.int/supersites/ASA_IM__0CNPDE20100215_152550_000001202086_00498_41634_8487.N1:https://eo-virtual-archive4.esa.int/supersites/ASA_IM__0CNPDE20100426_152543_000000302088_00498_42636_0225.N1</source-->
-	<source scope="runtime" id="master" title="inSAR master" abstract="inSAR (ERS or ASAR) master" refid="string:list">https://eo-virtual-archive4.esa.int/supersites/ER02_SAR_IM__0P_20040603T104855_20040603T104912_IPA_47686_0000.CEOS.tar.gz</source>
-      </sources>
-      <parameters>
-	<parameter id="slave" scope="runtime">https://eo-virtual-archive4.esa.int/supersites/ER02_SAR_IM__0P_20031106T104848_20031106T104905_IPA_44680_0000.CEOS.tar.gz</parameter>
+	<node id="node_aux">
+	<job id="aux" />
+       	<sources>    
+		<source scope="runtime" id="master" title="inSAR master" abstract="inSAR  master" refid="string:list" maxOccurs="1"></source>
+	</sources>
+	<parameters>
+		<parameter id="slave" scope="runtime"></parameter>
+	</parameters>
+      </node>
+      <node id="node_diap">
+      	<job id="ersasar"/>
+        <sources>
+		<source refid="wf:node">node_aux</source>
+        </sources>
+      <parameters> 
+	<parameter id="aoi"/>
       </parameters>
     </node>
   </workflow>
