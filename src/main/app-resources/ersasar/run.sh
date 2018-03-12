@@ -1227,12 +1227,12 @@ create_interf_properties "${cohorthotif}" "Interferometric Coherence" "${serverd
 
 if [ "${unwrap}" == "true" ] && [ -e "${unworthotif}" ] ; then
     create_interf_properties "${unworthotif}" "Unwrapped Phase" "${serverdir}" "${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" "${serverdir}/DAT/GEOSAR/${orbitslave}.geosar"
-    gdaladdo -clean "${unworthotif}"
+    gdaladdo -r average "${unworthotifrgb}" 2 4 8 
 fi
 
-gdaladdo -clean "${amporthotif}"
-gdaladdo -clean "${phaorthotif}"
-gdaladdo -clean "${cohorthotif}"
+gdaladdo -r average "${amporthotifrgb}" 2 4 8
+gdaladdo -r average "${phaorthotifrgb}" 2 4 8
+gdaladdo -r average "${cohorthotifrgb}" 2 4 8
 
 ciop-publish -m "${serverdir}"/GEOCODE/*.properties
 ciop-publish -m "${serverdir}"/GEOCODE/*.tif
