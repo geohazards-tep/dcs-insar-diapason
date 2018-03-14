@@ -1083,17 +1083,27 @@ cp "${serverdir}"/log/ortho.log ${serverdir}/ortho_amp.log
 #ortho coh
 #ortho.pl --geosar="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --odir="${serverdir}/GEOCODE" --exedir="${EXE_DIR}" --tag="coh_${orbitmaster}_${orbitslave}_ml"  --mlaz="${MLAZ}" --mlran="${MLRAN}" --in="${serverdir}/DIF_INT/coh_${orbitmaster}_${orbitslave}_ml${MLAZ}${MLRAN}.rad"   > "${serverdir}"/log/ortho_ml_coh.log 2<&1
 
-#creating geotiff results
-ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/coh_${orbitmaster}_${orbitslave}_ml11_ortho.rad" --demdesc="${DEM}"  --mask --min=1 --max=255 --colortbl=BLACK-WHITE  --outfile="${serverdir}/GEOCODE/coh_${orbitmaster}_${orbitslave}_ml_ortho.tif" >> "${serverdir}"/log/ortho_ml_coh.log 2<&1
+#output geotiff files
+cohorthotif="${serverdir}/GEOCODE/coh_${orbitmaster}_${orbitslave}_ml_ortho.tif"
+cohorthotifrgb="${serverdir}/GEOCODE/coh_${orbitmaster}_${orbitslave}_ml_ortho.rgb.tif"
+amporthotif="${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_ortho.tif"
+amporthotifrgb="${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_ortho.rgb.tif"
+phaorthotif="${serverdir}/GEOCODE/pha_${orbitmaster}_${orbitslave}_ortho.tif"
+phaorthotifrgb="${serverdir}/GEOCODE/pha_${orbitmaster}_${orbitslave}_ortho.rgb.tif"
+unworthotif="${serverdir}/GEOCODE/unw_${orbitmaster}_${orbitslave}_ortho.tif"
+unworthotifrgb="${serverdir}/GEOCODE/unw_${orbitmaster}_${orbitslave}_ortho.rgb.tif"
 
-ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/coh_${orbitmaster}_${orbitslave}_ml11_ortho.rad" --demdesc="${DEM}"   --outfile="${serverdir}/GEOCODE/coh_${orbitmaster}_${orbitslave}_ml_ortho_grayscale.tif" >> "${serverdir}"/log/ortho_ml_coh.log 2<&1
+#creating geotiff results
+ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/coh_${orbitmaster}_${orbitslave}_ml11_ortho.rad" --demdesc="${DEM}"  --mask --min=1 --max=255 --colortbl=BLACK-WHITE  --outfile="${cohorthotifrgb}" >> "${serverdir}"/log/ortho_ml_coh.log 2<&1
+
+ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/coh_${orbitmaster}_${orbitslave}_ml11_ortho.rad" --demdesc="${DEM}"   --outfile="${cohorthotif}" >> "${serverdir}"/log/ortho_ml_coh.log 2<&1
 
 #ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/pha_${orbitmaster}_${orbitslave}_ortho.rad" --demdesc="${DEM}"  --alpha="${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_ortho.rad" --mask   --outfile="${serverdir}/GEOCODE/pha_${orbitmaster}_${orbitslave}_ortho.tif" --colortbl=BLUE-RED  >> "${serverdir}"/log/ortho.log 2<&1
-ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/psfilt_${orbitmaster}_${orbitslave}_ml11_ortho.rad" --demdesc="${DEM}"  --alpha="${serverdir}/GEOCODE/coh_${orbitmaster}_${orbitslave}_ml11_ortho.rad" --mask --min=1 --max=255   --outfile="${serverdir}/GEOCODE/pha_${orbitmaster}_${orbitslave}_ortho.tif" --colortbl=BLUE-RED  >> "${serverdir}"/log/ortho.log 2<&1
+ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/psfilt_${orbitmaster}_${orbitslave}_ml11_ortho.rad" --demdesc="${DEM}"  --alpha="${serverdir}/GEOCODE/coh_${orbitmaster}_${orbitslave}_ml11_ortho.rad" --mask --min=1 --max=255   --outfile="${phaorthotifrgb}" --colortbl=BLUE-RED  >> "${serverdir}"/log/ortho.log 2<&1
 
-ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_ml11_ortho.rad" --demdesc="${DEM}"    --outfile="${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_ortho_grayscale.tif" >> "${serverdir}"/log/ortho.log 2<&1
+ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_ml11_ortho.rad" --demdesc="${DEM}"    --outfile="${amporthotif}" >> "${serverdir}"/log/ortho.log 2<&1
 
-ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_ml11_ortho.rad" --demdesc="${DEM}"    --outfile="${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_ortho.tif" --gep --mask --min=1 --max=255 --alpha="${serverdir}/GEOCODE/coh_${orbitmaster}_${orbitslave}_ml11_ortho.rad"   >> "${serverdir}"/log/ortho.log 2<&1
+ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_ml11_ortho.rad" --demdesc="${DEM}"    --outfile="${amporthotifrgb}" --gep --mask --min=1 --max=255 --alpha="${serverdir}/GEOCODE/coh_${orbitmaster}_${orbitslave}_ml11_ortho.rad"   >> "${serverdir}"/log/ortho.log 2<&1
 
 
 
@@ -1172,19 +1182,19 @@ EOF
 	#run ortho on unwrapped phase
 	ciop-log "INFO"  "Running Unwrapping results ortho-projection"
 	ortho.pl --geosar="${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" --real  --mlaz="${unwmlaz}" --mlran="${unwmlran}"  --odir="${serverdir}/GEOCODE" --exedir="${EXE_DIR}" --tag="unw_${orbitmaster}_${orbitslave}_ml${unwmlaz}${unwmlran}" --in="${unwpha}"   > "${serverdir}"/log/ortho_unw.log 2<&1
-	ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/unw_${orbitmaster}_${orbitslave}_ml${unwmlaz}${unwmlran}_ortho.rad" --alpha="${serverdir}/GEOCODE/coh_${orbitmaster}_${orbitslave}_ml11_ortho.rad" --mask --min=1 --max=255 --colortbl=BLUE-RED  --demdesc="${DEM}" --outfile="${serverdir}/GEOCODE/unw_${orbitmaster}_${orbitslave}_ortho.tif" >> "${serverdir}"/log/ortho_unw.log 2<&1
+	ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/unw_${orbitmaster}_${orbitslave}_ml${unwmlaz}${unwmlran}_ortho.rad" --alpha="${serverdir}/GEOCODE/coh_${orbitmaster}_${orbitslave}_ml11_ortho.rad" --mask --min=1 --max=255 --colortbl=BLUE-RED  --demdesc="${DEM}" --outfile="${unworthotifrgb}" >> "${serverdir}"/log/ortho_unw.log 2<&1
 	unwtif="${serverdir}/GEOCODE/unw_${orbitmaster}_${orbitslave}_ortho.tif"
 	
 	if [ ! -e "${unwtif}" ]; then
 	    ciop-log "ERROR" "Phase unwrapping failed"
-	    procCleanup
-	    exit ${ERRGENERIC}
+	    #procCleanup
+	    #exit ${ERRGENERIC}
 	fi
 
     else
 	ciop-log "ERROR" "Phase unwrapping failed"
-	procCleanup
-	exit ${ERRGENERIC}
+	#procCleanup
+	#exit ${ERRGENERIC}
     fi
     
 fi
@@ -1202,66 +1212,30 @@ wkt=$(tiff2wkt "`ls ${serverdir}/GEOCODE/amp*.tif | head -1`")
 echo "${wkt}" > ${serverdir}/wkt.txt
 
 
-    
-#convert all the tif files to png so that the results can be seen on the GeoBrowser
 
-#first do the coherence and amplitude ,for which 0 is a no-data value
-for tif in `find "${serverdir}/GEOCODE/"*.tif* -print | grep -v grayscale`; do
-    target=${tif%.*}.png
-    #special case of amplitude image
-    fname=`basename $tif`
-    isamp=`echo $fname | grep "amp.*\.tif"`
-    scaleopt=""
-    pxtp="Byte"
-    if [ -n "${isamp}" ]; then
-	#get min and max values passed to -scale option of gdal_translate
-	image_equalize_range "${tif}" scalemin scalemax
-	status=$?
-	[ $status -eq 0 ] && {
-	    scaleopt="${scalemin} $scalemax 0 65535"
-	}
-	#pxtp=UInt16
-       
-    fi
-    #gdal_translate   -scale ${scaleopt} -oT ${pxtp} -of PNG -co worldfile=yes -a_nodata 0 "${tif}" "${target}" >> "${serverdir}"/log/ortho.log 2<&1
-    gdal_translate -oT ${pxtp}  -of PNG -co worldfile=yes -a_nodata 0 "${tif}" "${target}" >> "${serverdir}"/log/ortho.log 2<&1
-    #convert the world file to pngw extension
-    wld=${target%.*}.wld
-    pngw=${target%.*}.pngw
-    [ -e "${wld}" ] && mv "${wld}"  "${pngw}"
-done
-
-#convert the phase with imageMagick , which can deal with the alpha channel
-if [ -n "`type -p convert`" ]; then
-    phase=`ls ${serverdir}/GEOCODE/*pha*.tif* | head -1`
-    [ -n "$phase" ] && convert -alpha activate "${phase}" "${phase%.*}.png"
-    unwtif="`ls ${serverdir}/GEOCODE/*unw*.tif* | head -1`"
-    [ -n "${unwtif}" ] && convert -alpha activate "${unwtif}" "${unwtif%.*}.png"
-fi
 
 #grayscale phase tiff results
-ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/unw_${orbitmaster}_${orbitslave}_ml${unwmlaz}${unwmlran}_ortho.rad"   --demdesc="${DEM}" --outfile="${serverdir}/GEOCODE/unw_${orbitmaster}_${orbitslave}_ortho.tif" >> "${serverdir}"/log/ortho_unw.log 2<&1
-ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/psfilt_${orbitmaster}_${orbitslave}_ml11_ortho.rad" --demdesc="${DEM}"  --outfile="${serverdir}/GEOCODE/pha_${orbitmaster}_${orbitslave}_ortho.tif"  >> "${serverdir}"/log/ortho.log 2<&1
+ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/unw_${orbitmaster}_${orbitslave}_ml${unwmlaz}${unwmlran}_ortho.rad"   --demdesc="${DEM}" --outfile="${unworthotif}" >> "${serverdir}"/log/ortho_unw.log 2<&1
+ortho2geotiff.pl --ortho="${serverdir}/GEOCODE/psfilt_${orbitmaster}_${orbitslave}_ml11_ortho.rad" --demdesc="${DEM}"  --outfile="${phaorthotif}"  >> "${serverdir}"/log/ortho.log 2<&1
 
-mv "${serverdir}/GEOCODE/coh_${orbitmaster}_${orbitslave}_ml_ortho_grayscale.tif" "${serverdir}/GEOCODE/coh_${orbitmaster}_${orbitslave}_ml_ortho.tif"
-mv "${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_ortho_grayscale.tif" "${serverdir}/GEOCODE/amp_${orbitmaster}_${orbitslave}_ortho.tif"
 
-#publish png and their pngw files
-ciop-publish -m "${serverdir}"/GEOCODE/*.png
-ciop-publish -m "${serverdir}"/GEOCODE/*.pngw
+create_interf_properties "${amporthotif}" "Interferometric Amplitude" "${serverdir}" "${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" "${serverdir}/DAT/GEOSAR/${orbitslave}.geosar"
 
-create_interf_properties "`ls ${serverdir}/GEOCODE/amp*.png | head -1`" "Interferometric Amplitude" "${serverdir}" "${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" "${serverdir}/DAT/GEOSAR/${orbitslave}.geosar"
+create_interf_properties "${phaorthotif}" "Interferometric Phase" "${serverdir}" "${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" "${serverdir}/DAT/GEOSAR/${orbitslave}.geosar"
 
-create_interf_properties "`ls ${serverdir}/GEOCODE/pha*.png | head -1`" "Interferometric Phase" "${serverdir}" "${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" "${serverdir}/DAT/GEOSAR/${orbitslave}.geosar"
+create_interf_properties "${cohorthotif}" "Interferometric Coherence" "${serverdir}" "${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" "${serverdir}/DAT/GEOSAR/${orbitslave}.geosar"
 
-create_interf_properties "`ls ${serverdir}/GEOCODE/coh*.png | head -1`" "Interferometric Coherence" "${serverdir}" "${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" "${serverdir}/DAT/GEOSAR/${orbitslave}.geosar"
-
-if [ "${unwrap}" == "true" ] ; then
-    create_interf_properties "`ls ${serverdir}/GEOCODE/unw*.png | head -1`" "Unwrapped Phase" "${serverdir}" "${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" "${serverdir}/DAT/GEOSAR/${orbitslave}.geosar"
+if [ "${unwrap}" == "true" ] && [ -e "${unworthotif}" ] ; then
+    create_interf_properties "${unworthotif}" "Unwrapped Phase" "${serverdir}" "${serverdir}/DAT/GEOSAR/${orbitmaster}.geosar" "${serverdir}/DAT/GEOSAR/${orbitslave}.geosar"
+    gdaladdo -r average "${unworthotifrgb}" 2 4 8 
 fi
 
-ciop-publish -m "${serverdir}"/GEOCODE/*.properties
+gdaladdo -r average "${amporthotifrgb}" 2 4 8
+gdaladdo -r average "${phaorthotifrgb}" 2 4 8
+gdaladdo -r average "${cohorthotifrgb}" 2 4 8
 
+ciop-publish -m "${serverdir}"/GEOCODE/*.properties
+ciop-publish -m "${serverdir}"/GEOCODE/*.tif
 
 #processing log files
 logzip="${serverdir}/TEMP/logs.zip"
@@ -1276,9 +1250,6 @@ find ${serverdir}/GEOCODE/ -iname "*.tif" -exec mv '{}' ${serverdir}/GEOTIFF \;
 cd ${serverdir}/GEOTIFF
 prodzip="${serverdir}/GEOTIFF/products.zip"
 
-zip "${prodzip}" *.tif
-chmod 777 products.zip
-ciop-publish -m "${prodzip}"
 cd -
 
 
