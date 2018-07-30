@@ -137,6 +137,10 @@ function check_local_sar_file
 
     file=$1
 
+    if [ -d "${file}" ]; then
+	return ${SUCCESS}
+    fi
+
     fsize=$(stat -c "%s" "$file")
     
     if [ $fsize -gt 1048576 ]; then	
