@@ -64,6 +64,7 @@
                     <require>gdalcrop</require>
                     <require>perl-DBD-SQLite</require>
                     <require>procmail</require>
+		    <require>ncompress</require>
                   </requires>
                 </configuration>
               </execution>
