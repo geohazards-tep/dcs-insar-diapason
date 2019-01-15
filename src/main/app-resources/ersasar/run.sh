@@ -884,7 +884,16 @@ for geosar in  `find "${serverdir}"/DAT/GEOSAR/ -iname "*.geosar" -print`; do
     orbit=`grep -ih "ORBIT NUMBER" "${geosar}" | cut -b 40-1024 | sed 's@[[:space:]]@@g'`
     ciop-log "INFO"  "Downloading precise orbit data for orbit ${orbit}"
     case "$sensor" in
-	ERS*) diaporb.pl --geosar="${geosar}" --type=delft  --outdir="${serverdir}/ORB" --exedir="${EXE_DIR}" >> "${serverdir}/log/precise_orbits.log" 2<&1 ;;
+	ERS*) 
+	    diaporb.pl --geosar="${geosar}" --type=delft  --outdir="${serverdir}/ORB" --exedir="${EXE_DIR}" >> "${serverdir}/log/precise_orbits.log" 2<&1
+	    storb=$?
+	
+	    #try with prc orbits if first attempt fails
+	    if [ $storb -ne  0 ]; then
+		diaporb.pl --geosar="${geosar}" --type=prc  --outdir="${serverdir}/ORB" --exedir="${EXE_DIR}" >> "${serverdir}/log/precise_orbits.log" 2<&1
+	    fi
+	    
+	    ;;
 	ENVISAT*) 
 	    diaporb.pl --geosar="${geosar}" --type=doris --mode=1 --dir="${serverdir}/VOR" --outdir="${serverdir}/ORB" --exedir="${EXE_DIR}" >> "${serverdir}/log/precise_orbits.log" 2<&1 
 	    storb=$?
